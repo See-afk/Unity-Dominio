@@ -1,5 +1,8 @@
 {
   "dependencies": {
+    "com.unity.netcode.gameobjects": "2.4.0",
+    "com.unity.collections": "2.5.1",
+    "com.unity.transport": "2.4.0",
     "com.unity.ai.navigation": "2.0.12",
     "com.unity.collab-proxy": "2.12.4",
     "com.unity.ide.rider": "3.0.39",
