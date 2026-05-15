@@ -35,6 +35,16 @@ namespace KingOfTheHill.Players
             NetworkVariableReadPermission.Everyone,
             NetworkVariableWritePermission.Server);
 
+        public NetworkVariable<int> Score = new NetworkVariable<int>(
+            0,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
+        public NetworkVariable<bool> IsInCaptureZone = new NetworkVariable<bool>(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Server);
+
         // ─── Eventos locales (no de red) ──────────────────────────────────────────
         public event Action<float, float> OnHealthChanged;   // (newHP, maxHP)
         public event Action                OnDied;
@@ -93,6 +103,31 @@ namespace KingOfTheHill.Players
         {
             if (!IsSpawned) return;
             Health.Value = Mathf.Min(MaxHealth, Health.Value + amount);
+        }
+
+        /// <summary>Suma puntos al jugador. Llamar solo desde el servidor.</summary>
+        public void AddScore(int amount)
+        {
+            if (!IsServer || !IsSpawned || amount <= 0) return;
+
+            Score.Value = Mathf.Max(0, Score.Value + amount);
+        }
+
+        /// <summary>Reinicia la puntuacion del jugador. Llamar solo desde el servidor.</summary>
+        public void ResetScore()
+        {
+            if (!IsServer || !IsSpawned) return;
+
+            Score.Value = 0;
+        }
+
+        /// <summary>Marca si el jugador esta dentro de la zona de captura. Llamar solo desde el servidor.</summary>
+        public void SetCaptureZoneState(bool isInside)
+        {
+            if (!IsServer || !IsSpawned) return;
+            if (IsInCaptureZone.Value == isInside) return;
+
+            IsInCaptureZone.Value = isInside;
         }
 
         private void ScheduleRespawn()
