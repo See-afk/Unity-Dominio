@@ -17,6 +17,7 @@ namespace KingOfTheHill.Players
         [SerializeField] private GameObject    ownerHUDRoot;
         [SerializeField] private Slider        healthSlider;
         [SerializeField] private TextMeshProUGUI healthText;
+        [SerializeField] private TextMeshProUGUI scoreText;
         [SerializeField] private TextMeshProUGUI respawnText;
 
         // ─── Inspector ─ Billboard sobre la cabeza (visible para todos) ──────────
@@ -25,6 +26,7 @@ namespace KingOfTheHill.Players
         [SerializeField] private TextMeshProUGUI    playerNameText;
         [SerializeField] private Slider             billboardHealthBar;
         [SerializeField] private Image              teamColorIndicator;
+        [SerializeField] private bool               showScoreInBillboard = true;
 
         // ─── Inspector ─ Colores de equipo ────────────────────────────────────────
         [Header("Equipos")]
@@ -37,7 +39,12 @@ namespace KingOfTheHill.Players
         // ─── Cache para evitar allocs ──────────────────────────────────────────────
         private float _lastHealth     = -1f;
         private int   _lastTeam       = -1;
+        private int   _lastScore      = -1;
         private bool  _lastAlive      = true;
+        private bool  _lastCapturing;
+        private string _lastPlayerName = "Player";
+        private GUIStyle _scoreStyle;
+        private GUIStyle _captureStyle;
 
         // ─────────────────────────────────────────────────────────────────────────
 
@@ -59,12 +66,16 @@ namespace KingOfTheHill.Players
             _stats.TeamIndex.OnValueChanged += OnTeamChanged;
             _stats.IsAlive.OnValueChanged   += OnAliveChanged;
             _stats.PlayerName.OnValueChanged+= OnNameChanged;
+            _stats.Score.OnValueChanged     += OnScoreChanged;
+            _stats.IsInCaptureZone.OnValueChanged += OnCaptureZoneChanged;
 
             // Inicializar valores actuales
             RefreshHealthUI(_stats.Health.Value);
             RefreshTeamUI(_stats.TeamIndex.Value);
             RefreshNameUI(_stats.PlayerName.Value.ToString());
             RefreshAliveUI(_stats.IsAlive.Value);
+            RefreshScoreUI(_stats.Score.Value);
+            RefreshCaptureZoneUI(_stats.IsInCaptureZone.Value);
         }
 
         public override void OnNetworkDespawn()
@@ -73,6 +84,8 @@ namespace KingOfTheHill.Players
             _stats.TeamIndex.OnValueChanged -= OnTeamChanged;
             _stats.IsAlive.OnValueChanged   -= OnAliveChanged;
             _stats.PlayerName.OnValueChanged-= OnNameChanged;
+            _stats.Score.OnValueChanged     -= OnScoreChanged;
+            _stats.IsInCaptureZone.OnValueChanged -= OnCaptureZoneChanged;
         }
 
         // ─── Callbacks de NetworkVariable ─────────────────────────────────────────
@@ -82,6 +95,8 @@ namespace KingOfTheHill.Players
         private void OnAliveChanged(bool old, bool newVal)    => RefreshAliveUI(newVal);
         private void OnNameChanged(FixedString32Bytes old, FixedString32Bytes newVal)
             => RefreshNameUI(newVal.ToString());
+        private void OnScoreChanged(int old, int newVal)      => RefreshScoreUI(newVal);
+        private void OnCaptureZoneChanged(bool old, bool newVal) => RefreshCaptureZoneUI(newVal);
 
         // ─── Actualización de UI ──────────────────────────────────────────────────
 
@@ -115,8 +130,35 @@ namespace KingOfTheHill.Players
 
         private void RefreshNameUI(string playerName)
         {
+            _lastPlayerName = playerName;
+            RefreshBillboardName();
+        }
+
+        private void RefreshScoreUI(int score)
+        {
+            if (score == _lastScore) return;
+            _lastScore = score;
+
+            if (IsOwner && scoreText != null)
+                scoreText.SetText("{0} pts", score);
+
+            RefreshBillboardName();
+        }
+
+        private void RefreshCaptureZoneUI(bool isCapturing)
+        {
+            _lastCapturing = isCapturing;
+        }
+
+        private void RefreshBillboardName()
+        {
             if (playerNameText != null)
-                playerNameText.SetText(playerName);
+            {
+                if (showScoreInBillboard)
+                    playerNameText.SetText($"{_lastPlayerName} | {Mathf.Max(0, _lastScore)} pts");
+                else
+                    playerNameText.SetText(_lastPlayerName);
+            }
         }
 
         private void RefreshAliveUI(bool alive)
@@ -143,6 +185,42 @@ namespace KingOfTheHill.Players
             billboardRoot.transform.LookAt(
                 billboardRoot.transform.position + _mainCamera.transform.rotation * Vector3.forward,
                 _mainCamera.transform.rotation * Vector3.up);
+        }
+
+        private void OnGUI()
+        {
+            if (!IsOwner || _stats == null || !_stats.IsSpawned) return;
+
+            EnsureRuntimeStyles();
+
+            float width = Mathf.Min(320f, Screen.width - 32f);
+            Rect scoreRect = new Rect(16f, 16f, width, 42f);
+            GUI.Label(scoreRect, $"Puntaje: {Mathf.Max(0, _lastScore)} pts", _scoreStyle);
+
+            if (_lastCapturing)
+            {
+                Rect captureRect = new Rect(16f, 62f, width, 34f);
+                GUI.Label(captureRect, "CAPTURANDO  + puntos", _captureStyle);
+            }
+        }
+
+        private void EnsureRuntimeStyles()
+        {
+            if (_scoreStyle != null && _captureStyle != null) return;
+
+            _scoreStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 26,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = Color.white }
+            };
+
+            _captureStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 20,
+                fontStyle = FontStyle.Bold,
+                normal = { textColor = new Color(0.15f, 1f, 0.9f) }
+            };
         }
     }
 }
