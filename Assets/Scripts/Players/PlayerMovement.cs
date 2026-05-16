@@ -12,7 +12,6 @@ namespace KingOfTheHill.Players
     /// Optimización: sin allocs en Update, CharacterController en vez de Rigidbody.
     /// </summary>
     [RequireComponent(typeof(CharacterController))]
-    [RequireComponent(typeof(PlayerInput))]
     [RequireComponent(typeof(PlayerStats))]
     public class PlayerMovement : NetworkBehaviour
     {
@@ -28,6 +27,9 @@ namespace KingOfTheHill.Players
         [SerializeField] private Transform cameraRoot;
         [SerializeField] private float lookSensitivity = 0.15f;
         [SerializeField] private float verticalClamp   = 80f;
+
+        [Header("Física")]
+        [SerializeField] private float pushDecay = 5f;
 
         // ─── Privados ─────────────────────────────────────────────────────────────
         private CharacterController _cc;
@@ -45,6 +47,7 @@ namespace KingOfTheHill.Players
         private Vector2 _moveInput;
         private Vector2 _lookInput;
         private float   _verticalVelocity;
+        private Vector3 _pushVelocity;
         private float   _cameraPitch;
         private bool    _isSprinting;
         private bool    _isCrouching;
@@ -66,10 +69,22 @@ namespace KingOfTheHill.Players
 
         public override void OnNetworkSpawn()
         {
-            if (!IsOwner)
+            // Si no somos el dueño, o si somos el dueño pero no es nuestro objeto de jugador principal (ej: bots)
+            if (!IsOwner || !NetworkObject.IsPlayerObject)
             {
-                // Clientes remotos: deshabilitar PlayerInput para no procesar input
-                _playerInput.enabled = false;
+                // Deshabilitar input si no se destruyó
+                if (_playerInput != null)
+                    _playerInput.enabled = false;
+
+                // Deshabilitar cámara y audio
+                if (cameraRoot != null)
+                {
+                    var cam = cameraRoot.GetComponentInChildren<Camera>(true);
+                    if (cam != null) cam.enabled = false;
+
+                    var listener = cameraRoot.GetComponentInChildren<AudioListener>(true);
+                    if (listener != null) listener.enabled = false;
+                }
                 return;
             }
 
@@ -104,7 +119,7 @@ namespace KingOfTheHill.Players
 
         private void Update()
         {
-            if (!IsOwner) return;
+            if (!IsOwner || !NetworkObject.IsPlayerObject) return;
             if (!_stats.IsAlive.Value) return;
 
             // No permitir movimiento si no estamos en fase de juego
@@ -138,16 +153,22 @@ namespace KingOfTheHill.Players
 
         // ─── Callbacks ────────────────────────────────────────────────────────────
 
-        private void OnJump(InputAction.CallbackContext ctx)
+        public void OnJump() => Jump();
+        private void OnJump(InputAction.CallbackContext ctx) => Jump();
+
+        private void Jump()
         {
-            if (!IsOwner || !_stats.IsAlive.Value) return;
+            if (!IsOwner || !NetworkObject.IsPlayerObject || !_stats.IsAlive.Value) return;
             if (_cc.isGrounded)
                 _verticalVelocity = jumpForce;
         }
 
-        private void OnCrouch(InputAction.CallbackContext ctx)
+        public void OnCrouch() => Crouch();
+        private void OnCrouch(InputAction.CallbackContext ctx) => Crouch();
+
+        private void Crouch()
         {
-            if (!IsOwner) return;
+            if (!IsOwner || !NetworkObject.IsPlayerObject) return;
             _isCrouching  = !_isCrouching;
             _cc.height    = _isCrouching ? _crouchHeight : _standHeight;
             _cc.center    = Vector3.up * (_cc.height * 0.5f);
@@ -185,6 +206,9 @@ namespace KingOfTheHill.Players
             move   *= speed;
             move.y  = _verticalVelocity;
 
+            move += _pushVelocity;
+            _pushVelocity = Vector3.Lerp(_pushVelocity, Vector3.zero, pushDecay * Time.deltaTime);
+
             _cc.Move(move * Time.deltaTime);
         }
 
@@ -194,7 +218,24 @@ namespace KingOfTheHill.Players
                 _verticalVelocity = -2f;
 
             _verticalVelocity += gravity * Time.deltaTime;
-            _cc.Move(new Vector3(0, _verticalVelocity * Time.deltaTime, 0));
+            
+            Vector3 move = new Vector3(0, _verticalVelocity, 0);
+            move += _pushVelocity;
+            _pushVelocity = Vector3.Lerp(_pushVelocity, Vector3.zero, pushDecay * Time.deltaTime);
+            
+            _cc.Move(move * Time.deltaTime);
+        }
+
+        [ClientRpc]
+        public void ApplyPushClientRpc(Vector3 pushVector)
+        {
+            if (!IsOwner) return;
+            _pushVelocity += pushVector;
+
+            if (TryGetComponent(out KingOfTheHill.AI.BotRandomMovement botMove))
+            {
+                botMove.ApplyPush(pushVector);
+            }
         }
     }
 }

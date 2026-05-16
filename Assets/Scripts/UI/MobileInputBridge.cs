@@ -58,7 +58,7 @@ namespace KingOfTheHill.UI
             var players = FindObjectsByType<PlayerMovement>(FindObjectsInactive.Exclude);
             foreach (var p in players)
             {
-                if (!p.IsOwner) continue;
+                if (!p.IsOwner || !p.NetworkObject.IsPlayerObject) continue;
 
                 _localPlayerInput = p.GetComponent<PlayerInput>();
                 if (_localPlayerInput == null) continue;

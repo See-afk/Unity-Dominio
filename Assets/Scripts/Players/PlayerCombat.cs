@@ -11,7 +11,6 @@ namespace KingOfTheHill.Players
     /// Optimización: OverlapSphereNonAlloc + hashes de Animator cacheados.
     /// </summary>
     [RequireComponent(typeof(PlayerStats))]
-    [RequireComponent(typeof(PlayerInput))]
     [RequireComponent(typeof(Animator))]
     public class PlayerCombat : NetworkBehaviour
     {
@@ -20,6 +19,7 @@ namespace KingOfTheHill.Players
         [SerializeField] private float     attackDamage   = 20f;
         [SerializeField] private float     attackRange    = 1.8f;
         [SerializeField] private float     attackCooldown = 0.6f;
+        [SerializeField] private float     pushForce      = 30f;
         [SerializeField] private LayerMask playerLayer;
 
         [Header("Animaciones")]
@@ -61,7 +61,7 @@ namespace KingOfTheHill.Players
             _stats.OnDied      += HandleDied;
             _stats.OnRespawned += HandleRespawned;
 
-            if (!IsOwner) return;
+            if (!IsOwner || !NetworkObject.IsPlayerObject) return;
 
             _attackAction = _playerInput.actions["Attack"];
             _attackAction.performed += OnAttackPerformed;
@@ -72,7 +72,7 @@ namespace KingOfTheHill.Players
             _stats.OnDied      -= HandleDied;
             _stats.OnRespawned -= HandleRespawned;
 
-            if (!IsOwner || _attackAction == null) return;
+            if (!IsOwner || !NetworkObject.IsPlayerObject || _attackAction == null) return;
             _attackAction.performed -= OnAttackPerformed;
         }
 
@@ -84,9 +84,13 @@ namespace KingOfTheHill.Players
 
         // ─── Ataque ───────────────────────────────────────────────────────────────
 
-        private void OnAttackPerformed(InputAction.CallbackContext ctx)
+        public void OnAttack() => PerformAttack();
+
+        private void OnAttackPerformed(InputAction.CallbackContext ctx) => PerformAttack();
+
+        private void PerformAttack()
         {
-            if (!IsOwner || !_stats.IsAlive.Value) return;
+            if (!IsOwner || !NetworkObject.IsPlayerObject || !_stats.IsAlive.Value) return;
             
             // No permitir ataque si no estamos en fase de juego
             if (Managers.GamePhaseManager.Singleton != null && 
@@ -96,7 +100,8 @@ namespace KingOfTheHill.Players
             if (_attackTimer > 0f) return;
 
             _attackTimer = attackCooldown;
-            _animator.SetTrigger(_attackHash);
+            if (_animator.runtimeAnimatorController != null)
+                _animator.SetTrigger(_attackHash);
 
             PerformAttackServerRpc();
         }
@@ -107,8 +112,7 @@ namespace KingOfTheHill.Players
             int count = Physics.OverlapSphereNonAlloc(
                 transform.position + transform.forward * (attackRange * 0.5f),
                 attackRange,
-                _hitBuffer,
-                playerLayer);
+                _hitBuffer); // Quitamos la layer restriction temporalmente para debuggear
 
             for (int i = 0; i < count; i++)
             {
@@ -119,6 +123,15 @@ namespace KingOfTheHill.Players
                 {
                     target.TakeDamageServerRpc(attackDamage);
                     PlayHitEffectClientRpc(target.OwnerClientId);
+                    
+                    if (_hitBuffer[i].TryGetComponent(out PlayerMovement targetMovement))
+                    {
+                        Vector3 pushDirection = (_hitBuffer[i].transform.position - transform.position).normalized;
+                        if (pushDirection == Vector3.zero) pushDirection = transform.forward;
+                        pushDirection.y = 0.5f; // Add a bit of upward force
+                        pushDirection.Normalize();
+                        targetMovement.ApplyPushClientRpc(pushDirection * pushForce);
+                    }
                 }
             }
         }
@@ -127,12 +140,22 @@ namespace KingOfTheHill.Players
         private void PlayHitEffectClientRpc(ulong targetClientId)
         {
             if (NetworkManager.Singleton.LocalClientId != targetClientId) return;
-            _animator.SetTrigger(_hitHash);
+            if (_animator.runtimeAnimatorController != null)
+                _animator.SetTrigger(_hitHash);
         }
 
         // ─── Muerte / Respawn ─────────────────────────────────────────────────────
 
-        private void HandleDied()    => _animator.SetTrigger(_dieHash);
-        private void HandleRespawned() => _animator.Rebind();
+        private void HandleDied()
+        {
+            if (_animator.runtimeAnimatorController != null)
+                _animator.SetTrigger(_dieHash);
+        }
+        
+        private void HandleRespawned()
+        {
+            if (_animator.runtimeAnimatorController != null)
+                _animator.Rebind();
+        }
     }
 }

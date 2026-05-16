@@ -35,6 +35,12 @@ namespace Dominio.Managers
             NetworkVariableWritePermission.Owner
         );
 
+        public NetworkVariable<bool> IsBot = new(
+            false,
+            NetworkVariableReadPermission.Everyone,
+            NetworkVariableWritePermission.Owner
+        );
+
         // ────────────────────────────────────────────────────────────────
         public override void OnNetworkSpawn()
         {
@@ -45,8 +51,8 @@ namespace Dominio.Managers
             if (LobbyManager.Instance != null)
                 LobbyManager.Instance.RegisterPlayer(this);
 
-            // Si somos el Owner, sincronizamos nuestros datos de GameData
-            if (IsOwner)
+            // Si somos el Owner y no somos un bot, sincronizamos nuestros datos de GameData
+            if (IsOwner && !IsBot.Value)
                 InitializeOwnDataServerRpc(GameData.PlayerName, GameData.PlayerColorIndex);
 
             // Suscribirse a cambios para actualizar UI

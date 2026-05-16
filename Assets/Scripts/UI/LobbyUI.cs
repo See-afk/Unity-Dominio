@@ -145,5 +145,16 @@ namespace Dominio.UI
         {
             if (txtStatusMsg != null) txtStatusMsg.text = $"[!] {message}";
         }
+
+        private void OnGUI()
+        {
+            if (LobbyManager.Instance != null && LobbyManager.Instance.IsHost)
+            {
+                if (GUI.Button(new Rect(Screen.width - 200, 20, 180, 50), "Añadir IA (Debug)"))
+                {
+                    LobbyManager.Instance.AddBot();
+                }
+            }
+        }
     }
 }
