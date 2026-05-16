@@ -111,6 +111,9 @@ namespace KingOfTheHill.Players
             if (Managers.GamePhaseManager.Singleton != null && 
                 Managers.GamePhaseManager.Singleton.CurrentPhase.Value != Managers.GamePhase.Playing)
             {
+                if (Managers.GamePhaseManager.Singleton.CurrentPhase.Value == Managers.GamePhase.Finished)
+                    return;
+
                 // Asegurarnos de que el jugador caiga por gravedad aunque no se pueda mover
                 HandleGravityOnly();
                 return;
