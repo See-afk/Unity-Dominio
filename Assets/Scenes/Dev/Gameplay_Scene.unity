@@ -2583,6 +2583,13 @@ MonoBehaviour:
     m_InternalValue: 0
   CountdownTimer:
     m_InternalValue: 0
+  MatchTimer:
+    m_InternalValue: 0
+  WinnerClientId:
+    m_InternalValue: 18446744073709551615
+  WinningScore:
+    m_InternalValue: 50
+  matchDurationSeconds: 60
   countdownText: {fileID: 1529048930}
   cinematicCamera: {fileID: 735932065}
   mobileUIRoot: {fileID: 1172903115}
