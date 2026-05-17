@@ -83,8 +83,11 @@ namespace KingOfTheHill.Players
             _netGrounded.Value = _cc != null && _cc.isGrounded;
 
             // Animator local
-            _animator.SetFloat(_speedHash,  speed);
-            _animator.SetBool(_groundHash,  _netGrounded.Value);
+            if (_animator.runtimeAnimatorController != null)
+            {
+                _animator.SetFloat(_speedHash,  speed);
+                _animator.SetBool(_groundHash,  _netGrounded.Value);
+            }
         }
 
         // ─── Clientes remotos: aplica estado con interpolación ────────────────────
@@ -101,9 +104,12 @@ namespace KingOfTheHill.Players
                 rotationLerpSpeed * Time.deltaTime);
 
             // Animación
-            _animator.SetFloat(_speedHash,  _netSpeed.Value);
-            _animator.SetBool(_groundHash,  _netGrounded.Value);
-            _animator.SetBool(_crouchHash,  _netCrouching.Value);
+            if (_animator.runtimeAnimatorController != null)
+            {
+                _animator.SetFloat(_speedHash,  _netSpeed.Value);
+                _animator.SetBool(_groundHash,  _netGrounded.Value);
+                _animator.SetBool(_crouchHash,  _netCrouching.Value);
+            }
         }
 
         /// <summary>Llamado por PlayerMovement para sincronizar crouch.</summary>
@@ -111,7 +117,8 @@ namespace KingOfTheHill.Players
         {
             if (!IsOwner) return;
             _netCrouching.Value = value;
-            _animator.SetBool(_crouchHash, value);
+            if (_animator.runtimeAnimatorController != null)
+                _animator.SetBool(_crouchHash, value);
         }
     }
 }

@@ -20,12 +20,17 @@ namespace KingOfTheHill.UI
         [Header("Botones")]
         [SerializeField] private UnityEngine.UI.Button jumpButton;
         [SerializeField] private UnityEngine.UI.Button attackButton;
+        [SerializeField] private UnityEngine.UI.Image  attackCooldownImage; // Imagen semi-transparente que servirá de cooldown
         [SerializeField] private UnityEngine.UI.Button crouchButton;
 
         private PlayerInput _localPlayerInput;
         private InputAction _jumpAction;
         private InputAction _attackAction;
         private InputAction _crouchAction;
+
+        // Variables internas para el efecto del cooldown
+        private float _attackCooldownTimer;
+        private const float ATTACK_COOLDOWN_MAX = 0.4f; // Debe coincidir con el de PlayerCombat.cs
 
         public static MobileInputBridge Instance { get; private set; }
 
@@ -51,6 +56,20 @@ namespace KingOfTheHill.UI
             // Intentar encontrar el jugador local si aún no se ha encontrado
             if (_localPlayerInput == null)
                 TryFindLocalPlayer();
+
+            // Gestionar el visualizador del cooldown del ataque
+            if (_attackCooldownTimer > 0)
+            {
+                _attackCooldownTimer -= Time.deltaTime;
+                if (attackCooldownImage != null)
+                {
+                    attackCooldownImage.fillAmount = _attackCooldownTimer / ATTACK_COOLDOWN_MAX;
+                }
+            }
+            else if (attackCooldownImage != null && attackCooldownImage.fillAmount > 0)
+            {
+                attackCooldownImage.fillAmount = 0; // Termina el cooldown
+            }
         }
 
         private void TryFindLocalPlayer()
@@ -58,7 +77,7 @@ namespace KingOfTheHill.UI
             var players = FindObjectsByType<PlayerMovement>(FindObjectsInactive.Exclude);
             foreach (var p in players)
             {
-                if (!p.IsOwner) continue;
+                if (!p.IsOwner || !p.NetworkObject.IsPlayerObject) continue;
 
                 _localPlayerInput = p.GetComponent<PlayerInput>();
                 if (_localPlayerInput == null) continue;
@@ -87,6 +106,13 @@ namespace KingOfTheHill.UI
         private void OnAttackPressed()
         {
             if (_localPlayerInput == null) return;
+            
+            // Si el cooldown aún no termina, ignoramos el toque para evitar spam
+            if (_attackCooldownTimer > 0) return;
+
+            // Iniciamos el cooldown visual
+            _attackCooldownTimer = ATTACK_COOLDOWN_MAX;
+            
             _localPlayerInput.SendMessage("OnAttack", SendMessageOptions.DontRequireReceiver);
         }
 

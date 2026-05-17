@@ -3,6 +3,8 @@ using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using KingOfTheHill.Gameplay;
+using KingOfTheHill.Managers;
 
 namespace KingOfTheHill.Players
 {
@@ -51,6 +53,9 @@ namespace KingOfTheHill.Players
         private void Awake()
         {
             _stats = GetComponent<PlayerStats>();
+
+            if (GetComponent<CaptureZoneDirectionArrow>() == null)
+                gameObject.AddComponent<CaptureZoneDirectionArrow>();
         }
 
         public override void OnNetworkSpawn()
@@ -221,6 +226,167 @@ namespace KingOfTheHill.Players
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = new Color(0.15f, 1f, 0.9f) }
             };
+        }
+    }
+
+    /// <summary>
+    /// Flecha local sobre cada jugador que apunta hacia la zona de captura.
+    /// Se oculta cuando la zona ya esta dentro del campo de vision de la camara local.
+    /// </summary>
+    [RequireComponent(typeof(PlayerStats))]
+    public class CaptureZoneDirectionArrow : MonoBehaviour
+    {
+        [Header("Flecha")]
+        [SerializeField] private float heightOffset = 2.45f;
+        [SerializeField] private float arrowScale = 0.85f;
+        [SerializeField] private float pulseSpeed = 4f;
+        [SerializeField] private float pulseAmount = 0.12f;
+        [SerializeField] private Color arrowColor = new Color(0.1f, 0.9f, 1f, 1f);
+
+        private PlayerStats _stats;
+        private Camera _camera;
+        private Transform _arrowRoot;
+        private MeshRenderer _arrowRenderer;
+        private Material _arrowMaterial;
+
+        private void Awake()
+        {
+            _stats = GetComponent<PlayerStats>();
+            CreateArrow();
+        }
+
+        private void OnDisable()
+        {
+            SetArrowVisible(false);
+        }
+
+        private void LateUpdate()
+        {
+            if (_camera == null)
+                _camera = Camera.main;
+
+            CaptureZone zone = CaptureZone.ActiveZone;
+            if (_camera == null || zone == null || _stats == null || !_stats.IsAlive.Value || !ShouldShowDuringPhase())
+            {
+                SetArrowVisible(false);
+                return;
+            }
+
+            if (IsZoneVisible(zone))
+            {
+                SetArrowVisible(false);
+                return;
+            }
+
+            Vector3 direction = zone.Center - transform.position;
+            direction.y = 0f;
+
+            if (direction.sqrMagnitude < 0.04f)
+            {
+                SetArrowVisible(false);
+                return;
+            }
+
+            SetArrowVisible(true);
+
+            _arrowRoot.position = transform.position + Vector3.up * heightOffset;
+            _arrowRoot.rotation = Quaternion.LookRotation(direction.normalized, Vector3.up);
+
+            float pulse = 1f + Mathf.Sin(Time.time * pulseSpeed) * pulseAmount;
+            _arrowRoot.localScale = Vector3.one * (arrowScale * pulse);
+        }
+
+        private bool ShouldShowDuringPhase()
+        {
+            if (GamePhaseManager.Singleton == null) return true;
+            return GamePhaseManager.Singleton.CurrentPhase.Value == GamePhase.Playing;
+        }
+
+        private bool IsZoneVisible(CaptureZone zone)
+        {
+            Vector3 center = zone.Center + Vector3.up * 0.4f;
+            float radius = Mathf.Max(0.5f, zone.Radius);
+
+            return IsPointVisible(center)
+                || IsPointVisible(center + Vector3.forward * radius)
+                || IsPointVisible(center - Vector3.forward * radius)
+                || IsPointVisible(center + Vector3.right * radius)
+                || IsPointVisible(center - Vector3.right * radius);
+        }
+
+        private bool IsPointVisible(Vector3 worldPoint)
+        {
+            Vector3 viewport = _camera.WorldToViewportPoint(worldPoint);
+            return viewport.z > 0f
+                && viewport.x >= 0f && viewport.x <= 1f
+                && viewport.y >= 0f && viewport.y <= 1f;
+        }
+
+        private void CreateArrow()
+        {
+            if (_arrowRoot != null) return;
+
+            GameObject arrowObject = new GameObject("CaptureZoneDirectionArrow");
+            arrowObject.transform.SetParent(transform, false);
+            arrowObject.transform.localPosition = Vector3.up * heightOffset;
+
+            MeshFilter filter = arrowObject.AddComponent<MeshFilter>();
+            filter.sharedMesh = CreateArrowMesh();
+
+            _arrowRenderer = arrowObject.AddComponent<MeshRenderer>();
+            _arrowMaterial = CreateArrowMaterial();
+            _arrowRenderer.sharedMaterial = _arrowMaterial;
+
+            _arrowRoot = arrowObject.transform;
+            SetArrowVisible(false);
+        }
+
+        private Mesh CreateArrowMesh()
+        {
+            Mesh mesh = new Mesh();
+            mesh.name = "CaptureZoneDirectionArrowMesh";
+
+            mesh.vertices = new[]
+            {
+                new Vector3(0f, 0f, 0.75f),
+                new Vector3(-0.38f, 0f, -0.12f),
+                new Vector3(-0.14f, 0f, -0.12f),
+                new Vector3(-0.14f, 0f, -0.7f),
+                new Vector3(0.14f, 0f, -0.7f),
+                new Vector3(0.14f, 0f, -0.12f),
+                new Vector3(0.38f, 0f, -0.12f)
+            };
+
+            mesh.triangles = new[]
+            {
+                0, 2, 1,
+                0, 5, 2,
+                0, 6, 5,
+                2, 4, 3,
+                2, 5, 4
+            };
+
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        private Material CreateArrowMaterial()
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+            if (shader == null)
+                shader = Shader.Find("Sprites/Default");
+
+            Material material = new Material(shader);
+            material.name = "CaptureZoneDirectionArrow_Runtime";
+            material.color = arrowColor;
+            return material;
+        }
+
+        private void SetArrowVisible(bool visible)
+        {
+            if (_arrowRenderer != null && _arrowRenderer.enabled != visible)
+                _arrowRenderer.enabled = visible;
         }
     }
 }

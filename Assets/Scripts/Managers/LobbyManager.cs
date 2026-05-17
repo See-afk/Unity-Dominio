@@ -166,6 +166,28 @@ namespace Dominio.Managers
             OnLobbyUpdated?.Invoke();
         }
 
+        /// <summary>Agrega un jugador controlado por la IA al lobby.</summary>
+        public void AddBot()
+        {
+            if (!IsHost) return;
+            if (_players.Count >= MaxPlayers) return;
+            var prefab = NetworkManager.Singleton.NetworkConfig.PlayerPrefab;
+            if (prefab == null) return;
+
+            var go = Instantiate(prefab);
+            var netObj = go.GetComponent<NetworkObject>();
+            // Instanciar como objeto de red regular, propiedad del host
+            netObj.Spawn();
+
+            if (go.TryGetComponent(out LobbyPlayerData data))
+            {
+                data.IsBot.Value = true;
+                data.PlayerName.Value = "Bot " + UnityEngine.Random.Range(10, 999);
+                data.ColorIndex.Value = UnityEngine.Random.Range(0, GameData.PlayerColors.Length);
+                data.IsReady.Value = true;
+            }
+        }
+
         #endregion
 
         // ────────────────────────────────────────────────────────────────

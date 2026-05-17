@@ -14,6 +14,10 @@ namespace KingOfTheHill.Gameplay
     [RequireComponent(typeof(SphereCollider))]
     public class CaptureZone : NetworkBehaviour
     {
+        public static CaptureZone ActiveZone { get; private set; }
+        public Vector3 Center => transform.position;
+        public float Radius => radius;
+
         [Header("Captura")]
         [SerializeField] private float radius = 4f;
         [SerializeField] private float pointsPerSecond = 3f;
@@ -92,6 +96,8 @@ namespace KingOfTheHill.Gameplay
 
         public override void OnNetworkSpawn()
         {
+            ActiveZone = this;
+
             _syncedPosition.OnValueChanged += HandlePositionChanged;
             _syncedRadius.OnValueChanged += HandleRadiusChanged;
 
@@ -116,6 +122,9 @@ namespace KingOfTheHill.Gameplay
 
         public override void OnNetworkDespawn()
         {
+            if (ActiveZone == this)
+                ActiveZone = null;
+
             _syncedPosition.OnValueChanged -= HandlePositionChanged;
             _syncedRadius.OnValueChanged -= HandleRadiusChanged;
             _playersInside.Clear();

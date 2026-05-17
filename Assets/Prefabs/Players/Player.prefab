@@ -141,6 +141,8 @@ GameObject:
   - component: {fileID: 3095672101221710089}
   - component: {fileID: 4118700581327553598}
   - component: {fileID: 4944673492246256572}
+  - component: {fileID: 2319734326458525940}
+  - component: {fileID: 6767763842426937627}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -177,7 +179,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 0
+  GlobalObjectIdHash: 3504013866
   InScenePlacedSourceGlobalObjectIdHash: 0
   DeferredDespawnTick: 0
   Ownership: 1
@@ -299,6 +301,10 @@ MonoBehaviour:
         byte0029: 0
   IsAlive:
     m_InternalValue: 1
+  Score:
+    m_InternalValue: 0
+  IsInCaptureZone:
+    m_InternalValue: 0
   respawnDelay: 5
 --- !u!95 &61160466660487941
 Animator:
@@ -356,11 +362,13 @@ MonoBehaviour:
   ownerHUDRoot: {fileID: 0}
   healthSlider: {fileID: 0}
   healthText: {fileID: 0}
+  scoreText: {fileID: 0}
   respawnText: {fileID: 0}
   billboardRoot: {fileID: 0}
   playerNameText: {fileID: 0}
   billboardHealthBar: {fileID: 0}
   teamColorIndicator: {fileID: 0}
+  showScoreInBillboard: 1
   teamColors:
   - {r: 0, g: 0, b: 1, a: 1}
   - {r: 1, g: 0, b: 0, a: 1}
@@ -387,6 +395,7 @@ MonoBehaviour:
   cameraRoot: {fileID: 826094879214997723}
   lookSensitivity: 0.15
   verticalClamp: 80
+  pushDecay: 5
 --- !u!114 &4118700581327553598
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -403,6 +412,7 @@ MonoBehaviour:
   attackDamage: 20
   attackRange: 1.8
   attackCooldown: 0.6
+  pushForce: 30
   playerLayer:
     serializedVersion: 2
     m_Bits: 0
@@ -424,6 +434,35 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   playerCamera: {fileID: 6305165267122710966}
   bodyRenderer: {fileID: 0}
+--- !u!114 &2319734326458525940
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4695789772707538377}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b9fd6491d25a8b847aae4c295f90a8da, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KingOfTheHill.Gameplay.TopDownCameraSetup
+  ShowTopMostFoldoutHeaderGroup: 1
+  damping: 3
+  forwardLookAhead: 3
+  deadZoneRadius: 1
+--- !u!114 &6767763842426937627
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4695789772707538377}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 01bbb25bcd68719479f5f6839005f597, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::KingOfTheHill.Players.PlayerAimIndicator
+  ShowTopMostFoldoutHeaderGroup: 1
 --- !u!1 &6305165267122710966
 GameObject:
   m_ObjectHideFlags: 0
