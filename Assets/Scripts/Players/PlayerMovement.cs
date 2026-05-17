@@ -181,6 +181,10 @@ namespace KingOfTheHill.Players
 
         private void HandleLook()
         {
+            // Para el modo Top-Down / MOBA en móvil, la rotación manual con ratón se desactiva.
+            // El personaje girará automáticamente hacia donde camina (ver HandleMove).
+            
+            /*
             transform.Rotate(Vector3.up, _lookInput.x * lookSensitivity);
 
             _cameraPitch -= _lookInput.y * lookSensitivity;
@@ -188,6 +192,7 @@ namespace KingOfTheHill.Players
 
             if (cameraRoot != null)
                 cameraRoot.localEulerAngles = new Vector3(_cameraPitch, 0f, 0f);
+            */
         }
 
         private void HandleMove()
@@ -201,10 +206,32 @@ namespace KingOfTheHill.Players
                         : _isSprinting ? sprintSpeed
                         : walkSpeed;
 
-            Vector3 move = transform.right   * _moveInput.x
-                         + transform.forward * _moveInput.y;
-            move   *= speed;
-            move.y  = _verticalVelocity;
+            // En lugar de usar la rotación del jugador, usamos la rotación de la cámara
+            Vector3 forward = transform.forward;
+            Vector3 right = transform.right;
+
+            if (Camera.main != null)
+            {
+                forward = Camera.main.transform.forward;
+                forward.y = 0;
+                forward.Normalize();
+
+                right = Camera.main.transform.right;
+                right.y = 0;
+                right.Normalize();
+            }
+
+            Vector3 move = right * _moveInput.x + forward * _moveInput.y;
+
+            // --- Auto-rotación hacia donde caminamos (Estilo MOBA/Brawler) ---
+            if (move.sqrMagnitude > 0.001f)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(move.normalized);
+                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, 15f * Time.deltaTime);
+            }
+
+            move *= speed;
+            move.y = _verticalVelocity;
 
             move += _pushVelocity;
             _pushVelocity = Vector3.Lerp(_pushVelocity, Vector3.zero, pushDecay * Time.deltaTime);

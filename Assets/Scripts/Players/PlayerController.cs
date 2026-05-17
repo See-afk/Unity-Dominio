@@ -43,9 +43,9 @@ namespace KingOfTheHill.Players
 
         public override void OnNetworkSpawn()
         {
-            // ── Cámara: se activa solo si es Owner y la fase es Playing ───────
+            // ── Cámara: se activa solo si es LocalPlayer y la fase es Playing ───────
             if (playerCamera != null)
-                playerCamera.SetActive(IsOwner && IsPlayingPhase());
+                playerCamera.SetActive(IsLocalPlayer && IsPlayingPhase());
 
             // ── Subsistemas de control: solo activos para dueño ───────────────────
             // Los clientes remotos no necesitan input, solo visualización y sync.
@@ -80,7 +80,7 @@ namespace KingOfTheHill.Players
 
         private void Update()
         {
-            if (!IsOwner) return;
+            if (!IsLocalPlayer) return;
             
             // Verificamos robustamente si debemos tener la cámara activa.
             // Esto previene problemas de orden de inicialización entre el Manager y el Player.

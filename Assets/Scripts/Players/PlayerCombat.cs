@@ -17,8 +17,8 @@ namespace KingOfTheHill.Players
         // ─── Inspector ────────────────────────────────────────────────────────────
         [Header("Ataque")]
         [SerializeField] private float     attackDamage   = 20f;
-        [SerializeField] private float     attackRange    = 1.8f;
-        [SerializeField] private float     attackCooldown = 0.6f;
+        [SerializeField] private float     attackRange    = 2.5f; // Rango aumentado para móviles
+        [SerializeField] private float     attackCooldown = 0.4f; // Cooldown reducido para sentirse más ágil
         [SerializeField] private float     pushForce      = 30f;
         [SerializeField] private LayerMask playerLayer;
 

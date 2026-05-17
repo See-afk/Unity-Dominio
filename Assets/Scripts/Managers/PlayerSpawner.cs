@@ -39,7 +39,7 @@ namespace KingOfTheHill.Managers
             SpawnPlayer(NetworkManager.Singleton.LocalClientId);
 
             // Spawnea a los bots usando los datos persistentes de LobbyPlayerData
-            var lobbyPlayers = FindObjectsByType<Dominio.Managers.LobbyPlayerData>(FindObjectsSortMode.None);
+            var lobbyPlayers = FindObjectsByType<Dominio.Managers.LobbyPlayerData>(FindObjectsInactive.Exclude);
             if (lobbyPlayers != null)
             {
                 int botIndex = 1;
