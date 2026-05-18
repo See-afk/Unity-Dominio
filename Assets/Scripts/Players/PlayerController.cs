@@ -1,13 +1,11 @@
-using Unity.Collections;
+using Dominio.Managers;
 using Unity.Netcode;
 using UnityEngine;
 
 namespace KingOfTheHill.Players
 {
     /// <summary>
-    /// Punto de entrada del jugador: coordina todos los subsistemas.
-    /// Desactiva componentes de control en clientes remotos para no gastar CPU.
-    /// Aplicando principio del PDF: "evita cálculos innecesarios" por jugador.
+    /// Punto de entrada del jugador: coordina movimiento, combate, sync, HUD y datos visuales.
     /// </summary>
     [RequireComponent(typeof(PlayerStats))]
     [RequireComponent(typeof(PlayerMovement))]
@@ -16,93 +14,78 @@ namespace KingOfTheHill.Players
     [RequireComponent(typeof(PlayerHUD))]
     public class PlayerController : NetworkBehaviour
     {
-        // ─── Inspector ────────────────────────────────────────────────────────────
-        [Header("Cámara")]
-        [SerializeField] private GameObject playerCamera;   // cámara solo activa para Owner
+        [Header("Camara")]
+        [SerializeField] private GameObject playerCamera;
 
         [Header("Referencias")]
         [SerializeField] private SkinnedMeshRenderer bodyRenderer;
 
-        // ─── Subsistemas ──────────────────────────────────────────────────────────
-        private PlayerStats       _stats;
-        private PlayerMovement    _movement;
-        private PlayerCombat      _combat;
+        private PlayerStats _stats;
+        private PlayerMovement _movement;
+        private PlayerCombat _combat;
         private PlayerNetworkSync _netSync;
-        private PlayerHUD         _hud;
-
-        // ─────────────────────────────────────────────────────────────────────────
+        private PlayerHUD _hud;
+        private Renderer _bodyRendererFallback;
 
         private void Awake()
         {
-            _stats    = GetComponent<PlayerStats>();
+            _stats = GetComponent<PlayerStats>();
             _movement = GetComponent<PlayerMovement>();
-            _combat   = GetComponent<PlayerCombat>();
-            _netSync  = GetComponent<PlayerNetworkSync>();
-            _hud      = GetComponent<PlayerHUD>();
+            _combat = GetComponent<PlayerCombat>();
+            _netSync = GetComponent<PlayerNetworkSync>();
+            _hud = GetComponent<PlayerHUD>();
+            _bodyRendererFallback = bodyRenderer != null ? bodyRenderer : GetComponentInChildren<Renderer>();
         }
 
         public override void OnNetworkSpawn()
         {
-            // ── Cámara: se activa solo si es LocalPlayer y la fase es Playing ───────
             if (playerCamera != null)
                 playerCamera.SetActive(IsLocalPlayer && IsPlayingPhase());
 
-            // ── Subsistemas de control: solo activos para dueño ───────────────────
-            // Los clientes remotos no necesitan input, solo visualización y sync.
             _movement.enabled = IsOwner;
-            _combat.enabled   = IsOwner;
-
-            // ── Sincronización: activa para todos ─────────────────────────────────
+            _combat.enabled = IsOwner;
             _netSync.enabled = true;
-            _hud.enabled     = true;
+            _hud.enabled = true;
 
-            // ── Suscribirse a muerte/respawn ──────────────────────────────────────
-            _stats.OnDied      += HandleDied;
+            _stats.OnDied += HandleDied;
             _stats.OnRespawned += HandleRespawned;
+            _stats.TeamIndex.OnValueChanged += HandleTeamChanged;
 
-            // ── Poner nombre por defecto en el servidor ────────────────────────────
-            if (IsServer)
-                _stats.PlayerName.Value = new Unity.Collections.FixedString32Bytes(
-                    $"Player {OwnerClientId}");
+            if (IsServer && _stats.PlayerName.Value.ToString() == "Player")
+                _stats.PlayerName.Value = new Unity.Collections.FixedString32Bytes($"Player {OwnerClientId}");
+
+            ApplyPlayerColor(_stats.TeamIndex.Value);
         }
 
         public override void OnNetworkDespawn()
         {
-            _stats.OnDied      -= HandleDied;
+            _stats.OnDied -= HandleDied;
             _stats.OnRespawned -= HandleRespawned;
+            _stats.TeamIndex.OnValueChanged -= HandleTeamChanged;
         }
 
         private bool IsPlayingPhase()
         {
-            if (Managers.GamePhaseManager.Singleton == null) return true; // Fallback
+            if (Managers.GamePhaseManager.Singleton == null) return true;
             return Managers.GamePhaseManager.Singleton.CurrentPhase.Value == Managers.GamePhase.Playing;
         }
 
         private void Update()
         {
             if (!IsLocalPlayer) return;
-            
-            // Verificamos robustamente si debemos tener la cámara activa.
-            // Esto previene problemas de orden de inicialización entre el Manager y el Player.
+
             if (playerCamera != null)
             {
                 bool shouldBeActive = IsPlayingPhase();
                 if (playerCamera.activeSelf != shouldBeActive)
-                {
                     playerCamera.SetActive(shouldBeActive);
-                    Debug.Log($"[PlayerController] Cambiando estado de playerCamera a: {shouldBeActive}");
-                }
             }
         }
 
-        // ─── Muerte y Respawn ─────────────────────────────────────────────────────
-
         private void HandleDied()
         {
-            // Desactivar colisiones localmente (el servidor ya gestionó el estado)
             GetComponent<CharacterController>().enabled = false;
 
-            // Ocultar mesh en todos los clientes via RPC
             if (IsOwner)
                 SetVisibleServerRpc(false);
         }
@@ -115,8 +98,6 @@ namespace KingOfTheHill.Players
                 SetVisibleServerRpc(true);
         }
 
-        // ─── RPCs ─────────────────────────────────────────────────────────────────
-
         [ServerRpc]
         private void SetVisibleServerRpc(bool visible)
         {
@@ -126,37 +107,48 @@ namespace KingOfTheHill.Players
         [ClientRpc]
         private void SetVisibleClientRpc(bool visible)
         {
-            if (bodyRenderer != null)
-                bodyRenderer.enabled = visible;
+            Renderer rendererToUse = GetBodyRenderer();
+            if (rendererToUse != null)
+                rendererToUse.enabled = visible;
         }
 
-        // ─── API pública ──────────────────────────────────────────────────────────
+        private void HandleTeamChanged(int oldValue, int newValue)
+        {
+            ApplyPlayerColor(newValue);
+        }
 
-        /// <summary>
-        /// Asigna nombre del jugador. Llamar desde el servidor o con ServerRpc.
-        /// </summary>
+        private void ApplyPlayerColor(int colorIndex)
+        {
+            Renderer rendererToUse = GetBodyRenderer();
+            if (rendererToUse == null || GameData.PlayerColors.Length == 0) return;
+
+            Color32 color = GameData.PlayerColors[Mathf.Abs(colorIndex) % GameData.PlayerColors.Length];
+            rendererToUse.material.color = color;
+        }
+
+        private Renderer GetBodyRenderer()
+        {
+            if (_bodyRendererFallback == null)
+                _bodyRendererFallback = bodyRenderer != null ? bodyRenderer : GetComponentInChildren<Renderer>();
+
+            return _bodyRendererFallback;
+        }
+
         [ServerRpc(RequireOwnership = false)]
         public void SetPlayerNameServerRpc(string name)
         {
             _stats.PlayerName.Value = new Unity.Collections.FixedString32Bytes(name);
         }
 
-        /// <summary>
-        /// Asigna equipo. Llamar desde el servidor.
-        /// </summary>
         public void SetTeam(int teamIndex)
         {
             if (!IsServer) return;
             _stats.TeamIndex.Value = teamIndex;
         }
 
-        /// <summary>
-        /// Teletransporta al jugador a una posición (solo servidor).
-        /// </summary>
         public void Teleport(Vector3 position, Quaternion rotation)
         {
             if (!IsServer) return;
-
             TeleportClientRpc(position, rotation);
         }
 

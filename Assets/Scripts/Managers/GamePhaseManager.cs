@@ -5,6 +5,7 @@ using KingOfTheHill.Players;
 using TMPro;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace KingOfTheHill.Managers
 {
@@ -27,6 +28,7 @@ namespace KingOfTheHill.Managers
 
         [Header("Partida")]
         [SerializeField] private int matchDurationSeconds = 180;
+        [SerializeField] private string mainMenuSceneName = "MainMenu_Scene";
 
         [Header("Referencias de la Escena")]
         [SerializeField] private TextMeshProUGUI countdownText;
@@ -38,7 +40,10 @@ namespace KingOfTheHill.Managers
         private GUIStyle _resultTitleStyle;
         private GUIStyle _resultSubtitleStyle;
         private GUIStyle _scoreboardStyle;
+        private GUIStyle _buttonStyle;
         private GUIStyle _panelStyle;
+        private bool _isLeavingToMenu;
+        private bool _isRestartingMatch;
 
         private void Awake()
         {
@@ -162,6 +167,12 @@ namespace KingOfTheHill.Managers
 
             if (countdownText != null && isPlaying)
                 countdownText.text = "";
+
+            if (phase == GamePhase.Finished)
+            {
+                Cursor.visible = true;
+                Cursor.lockState = CursorLockMode.None;
+            }
         }
 
         private void OnValidate()
@@ -208,8 +219,10 @@ namespace KingOfTheHill.Managers
             Rect subtitleRect = new Rect(panel.x + 24f, panel.y + 82f, panel.width - 48f, 34f);
             GUI.Label(subtitleRect, GetWinnerText(), _resultSubtitleStyle);
 
-            Rect tableRect = new Rect(panel.x + 34f, panel.y + 138f, panel.width - 68f, panel.height - 168f);
+            Rect tableRect = new Rect(panel.x + 34f, panel.y + 138f, panel.width - 68f, panel.height - 228f);
             DrawScoreboard(tableRect);
+
+            DrawResultButtons(panel);
         }
 
         private string GetWinnerText()
@@ -266,6 +279,63 @@ namespace KingOfTheHill.Managers
             _scoreboardPlayers.Sort((a, b) => b.Score.Value.CompareTo(a.Score.Value));
         }
 
+        private void DrawResultButtons(Rect panel)
+        {
+            float buttonWidth = Mathf.Min(220f, (panel.width - 72f) * 0.5f);
+            float buttonHeight = 46f;
+            float y = panel.yMax - 68f;
+            float leftX = panel.x + (panel.width - (buttonWidth * 2f + 24f)) * 0.5f;
+
+            Rect menuRect = new Rect(leftX, y, buttonWidth, buttonHeight);
+            Rect restartRect = new Rect(leftX + buttonWidth + 24f, y, buttonWidth, buttonHeight);
+
+            GUI.enabled = !_isLeavingToMenu;
+            if (GUI.Button(menuRect, "Salir al menu", _buttonStyle))
+                LeaveToMenu();
+
+            GUI.enabled = !_isRestartingMatch && !_isLeavingToMenu;
+            if (GUI.Button(restartRect, "Nueva partida", _buttonStyle))
+                RequestRestartMatch();
+
+            GUI.enabled = true;
+        }
+
+        private void RequestRestartMatch()
+        {
+            if (_isRestartingMatch) return;
+            _isRestartingMatch = true;
+
+            if (IsServer)
+                RestartMatch();
+            else
+                RequestRestartMatchServerRpc();
+        }
+
+        [ServerRpc(RequireOwnership = false)]
+        private void RequestRestartMatchServerRpc()
+        {
+            RestartMatch();
+        }
+
+        private void RestartMatch()
+        {
+            if (!IsServer || NetworkManager.Singleton == null) return;
+
+            string sceneName = SceneManager.GetActiveScene().name;
+            NetworkManager.Singleton.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
+        }
+
+        private void LeaveToMenu()
+        {
+            if (_isLeavingToMenu) return;
+            _isLeavingToMenu = true;
+
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+                NetworkManager.Singleton.Shutdown();
+
+            SceneManager.LoadScene(mainMenuSceneName);
+        }
+
         private string FormatTime(int seconds)
         {
             seconds = Mathf.Max(0, seconds);
@@ -306,6 +376,13 @@ namespace KingOfTheHill.Managers
                 fontSize = 21,
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = Color.white }
+            };
+
+            _buttonStyle = new GUIStyle(GUI.skin.button)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 18,
+                fontStyle = FontStyle.Bold
             };
 
             Texture2D panelTexture = new Texture2D(1, 1);
