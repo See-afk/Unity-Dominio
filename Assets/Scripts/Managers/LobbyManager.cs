@@ -65,34 +65,37 @@ namespace Dominio.Managers
 
         // ── Arrancar Red ─────────────────────────────────────────────────
 
+        private bool _isStarting = false;
+
         /// <summary>Inicia como Host. Hace Shutdown primero si ya estaba corriendo.</summary>
         public void StartHost()
         {
+            if (_isStarting) return;
             StartCoroutine(StartAfterShutdown(isHost: true));
         }
 
         /// <summary>Se une como Cliente. Hace Shutdown primero si ya estaba corriendo.</summary>
         public void JoinAsClient()
         {
+            if (_isStarting) return;
             StartCoroutine(StartAfterShutdown(isHost: false));
         }
 
         private IEnumerator StartAfterShutdown(bool isHost)
         {
+            _isStarting = true;
             // Si el NetworkManager ya está corriendo, apagarlo primero
-            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsConnectedClient))
             {
                 Debug.Log("[LobbyManager] NetworkManager activo, haciendo Shutdown antes de iniciar.");
                 NetworkManager.Singleton.Shutdown();
-                // Esperar hasta que IsListening sea false (máx ~2s)
-                float timeout = 2f;
-                while (NetworkManager.Singleton.IsListening && timeout > 0f)
+                // Esperar hasta que termine el proceso de Shutdown para liberar el socket UDP
+                while (NetworkManager.Singleton.ShutdownInProgress)
                 {
-                    timeout -= Time.deltaTime;
                     yield return null;
                 }
-                // Un frame extra de seguridad
-                yield return null;
+                // Unos frames extra de seguridad para asegurar la liberación del puerto
+                yield return new WaitForSeconds(0.1f);
             }
 
             _players.Clear();
@@ -109,11 +112,13 @@ namespace Dominio.Managers
                 if (!NetworkManager.Singleton.StartClient())
                     OnConnectionFailed?.Invoke("No se pudo conectar al servidor.");
             }
+
+            _isStarting = false;
         }
 
         public void Disconnect()
         {
-            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsConnectedClient))
                 NetworkManager.Singleton.Shutdown();
 
             _players.Clear();
@@ -123,7 +128,10 @@ namespace Dominio.Managers
         {
             var transport = NetworkManager.Singleton.GetComponent<UnityTransport>();
             if (transport == null) return;
-            transport.SetConnectionData(address, port);
+            
+            // "0.0.0.0" obliga al host a escuchar en TODAS las interfaces de red (LAN/WiFi),
+            // no solo en localhost.
+            transport.SetConnectionData(address, port, "0.0.0.0");
         }
 
         // ────────────────────────────────────────────────────────────────

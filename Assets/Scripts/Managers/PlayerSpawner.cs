@@ -26,7 +26,25 @@ namespace KingOfTheHill.Managers
             NetworkManager.Singleton.OnClientConnectedCallback += OnClientConnected;
             NetworkManager.Singleton.OnClientDisconnectCallback += OnClientDisconnected;
 
-            SpawnPlayer(NetworkManager.Singleton.LocalClientId);
+            // Esperar a que la escena termine de cargar para TODOS antes de spawnear nada.
+            // Si spawneamos aquí, los clientes que aún están en la pantalla de carga (MainMenu)
+            // instanciarán los objetos en su escena actual y se destruirán al cambiar de escena.
+            if (NetworkManager.Singleton.SceneManager != null)
+            {
+                NetworkManager.Singleton.SceneManager.OnLoadEventCompleted += HandleLoadEventCompleted;
+            }
+        }
+
+        private void HandleLoadEventCompleted(string sceneName, UnityEngine.SceneManagement.LoadSceneMode loadSceneMode, System.Collections.Generic.List<ulong> clientsCompleted, System.Collections.Generic.List<ulong> clientsTimedOut)
+        {
+            if (!IsServer) return;
+
+            // La escena ya cargó para todos, ahora sí podemos spawnear a los jugadores
+            foreach (ulong clientId in clientsCompleted)
+            {
+                SpawnPlayer(clientId);
+            }
+
             SpawnLobbyBots();
         }
 
@@ -38,6 +56,8 @@ namespace KingOfTheHill.Managers
             {
                 NetworkManager.Singleton.OnClientConnectedCallback -= OnClientConnected;
                 NetworkManager.Singleton.OnClientDisconnectCallback -= OnClientDisconnected;
+                if (NetworkManager.Singleton.SceneManager != null)
+                    NetworkManager.Singleton.SceneManager.OnLoadEventCompleted -= HandleLoadEventCompleted;
             }
         }
 

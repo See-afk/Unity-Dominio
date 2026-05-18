@@ -330,8 +330,19 @@ namespace KingOfTheHill.Managers
             if (_isLeavingToMenu) return;
             _isLeavingToMenu = true;
 
-            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+            StartCoroutine(LeaveToMenuRoutine());
+        }
+
+        private IEnumerator LeaveToMenuRoutine()
+        {
+            if (NetworkManager.Singleton != null && (NetworkManager.Singleton.IsListening || NetworkManager.Singleton.IsConnectedClient))
+            {
                 NetworkManager.Singleton.Shutdown();
+                while (NetworkManager.Singleton.ShutdownInProgress)
+                    yield return null;
+                
+                yield return new WaitForSeconds(0.1f);
+            }
 
             SceneManager.LoadScene(mainMenuSceneName);
         }
