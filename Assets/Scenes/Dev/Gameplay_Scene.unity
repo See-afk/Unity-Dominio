@@ -2536,7 +2536,7 @@ MonoBehaviour:
     m_InternalValue: 18446744073709551615
   WinningScore:
     m_InternalValue: 50
-  matchDurationSeconds: 15
+  matchDurationSeconds: 60
   mainMenuSceneName: MainMenu_Scene
   countdownText: {fileID: 1529048930}
   cinematicCamera: {fileID: 735932065}

@@ -51,9 +51,13 @@ namespace Dominio.Managers
             if (LobbyManager.Instance != null)
                 LobbyManager.Instance.RegisterPlayer(this);
 
-            // Si somos el Owner y no somos un bot, sincronizamos nuestros datos de GameData
+            // Si somos el Owner y no somos un bot, asignamos nuestros datos de GameData directamente
+            // (Ya que los NetworkVariables tienen WritePermission = Owner)
             if (IsOwner && !IsBot.Value)
-                InitializeOwnDataServerRpc(GameData.PlayerName, GameData.PlayerColorIndex);
+            {
+                PlayerName.Value = GameData.PlayerName;
+                ColorIndex.Value = GameData.PlayerColorIndex;
+            }
 
             // Suscribirse a cambios para actualizar UI
             PlayerName.OnValueChanged += (_, _) => LobbyManager.Instance?.OnLobbyUpdated?.Invoke();
@@ -65,14 +69,6 @@ namespace Dominio.Managers
         {
             if (LobbyManager.Instance != null)
                 LobbyManager.Instance.UnregisterPlayer(this);
-        }
-
-        // ── RPC para escribir los datos del Owner en el servidor ─────────
-        [ServerRpc]
-        private void InitializeOwnDataServerRpc(FixedString64Bytes name, int colorIdx)
-        {
-            PlayerName.Value  = name;
-            ColorIndex.Value  = colorIdx;
         }
 
         // ── Helpers públicos para el Owner ───────────────────────────────

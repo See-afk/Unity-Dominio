@@ -25,8 +25,6 @@ namespace KingOfTheHill.Players
 
         [Header("Cámara")]
         [SerializeField] private Transform cameraRoot;
-        [SerializeField] private float lookSensitivity = 0.15f;
-        [SerializeField] private float verticalClamp   = 80f;
 
         [Header("Física")]
         [SerializeField] private float pushDecay = 5f;
@@ -48,7 +46,6 @@ namespace KingOfTheHill.Players
         private Vector2 _lookInput;
         private float   _verticalVelocity;
         private Vector3 _pushVelocity;
-        private float   _cameraPitch;
         private bool    _isSprinting;
         private bool    _isCrouching;
 

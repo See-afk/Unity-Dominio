@@ -35,6 +35,13 @@ namespace KingOfTheHill.Players
             _netSync = GetComponent<PlayerNetworkSync>();
             _hud = GetComponent<PlayerHUD>();
             _bodyRendererFallback = bodyRenderer != null ? bodyRenderer : GetComponentInChildren<Renderer>();
+
+            // Deshabilitar PlayerInput inmediatamente para evitar que intente vincular controles
+            // a jugadores remotos durante el Instantiate (evita el error de "Cannot find matching control scheme").
+            if (TryGetComponent(out UnityEngine.InputSystem.PlayerInput pi))
+            {
+                pi.enabled = false;
+            }
         }
 
         public override void OnNetworkSpawn()
@@ -46,6 +53,11 @@ namespace KingOfTheHill.Players
             _combat.enabled = IsOwner;
             _netSync.enabled = true;
             _hud.enabled = true;
+
+            if (TryGetComponent(out UnityEngine.InputSystem.PlayerInput pi))
+            {
+                pi.enabled = IsOwner;
+            }
 
             _stats.OnDied += HandleDied;
             _stats.OnRespawned += HandleRespawned;
