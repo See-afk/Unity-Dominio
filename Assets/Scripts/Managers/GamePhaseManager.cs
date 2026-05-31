@@ -28,6 +28,7 @@ namespace KingOfTheHill.Managers
 
         [Header("Partida")]
         [SerializeField] private int matchDurationSeconds = 180;
+        [SerializeField] private float goDisplaySeconds = 2f;
         [SerializeField] private string mainMenuSceneName = "MainMenu_Scene";
 
         [Header("Referencias de la Escena")]
@@ -44,6 +45,24 @@ namespace KingOfTheHill.Managers
         [SerializeField] private UnityEngine.UI.Button menuButton;
         [SerializeField] private UnityEngine.UI.Button restartButton;
 
+        [Header("Audio")]
+        [SerializeField] private AudioClip countdownMusic;
+        [SerializeField] private AudioClip backgroundMusic;
+        [SerializeField] private AudioClip hitSound;
+        [SerializeField] private AudioClip jumpSound;
+        [SerializeField] private AudioClip captureZoneLoop;
+        [SerializeField] private AudioClip matchEndSound;
+        [SerializeField, Range(0f, 1f)] private float musicVolume = 0.55f;
+        [SerializeField, Range(0f, 1f)] private float sfxVolume = 0.85f;
+        [SerializeField, Range(0f, 1f)] private float captureZoneVolume = 0.55f;
+        [SerializeField, Range(0f, 1f)] private float matchEndVolume = 0.85f;
+
+        private AudioSource _countdownSource;
+        private AudioSource _musicSource;
+        private AudioSource _sfxSource;
+        private AudioSource _captureZoneSource;
+        private bool _playedMatchEndSound;
+
         private bool _isLeavingToMenu;
         private bool _isRestartingMatch;
 
@@ -58,6 +77,8 @@ namespace KingOfTheHill.Managers
                 menuButton.onClick.AddListener(LeaveToMenu);
             if (restartButton != null)
                 restartButton.onClick.AddListener(RequestRestartMatch);
+
+            SetupAudioSources();
         }
 
         public override void OnNetworkSpawn()
@@ -75,6 +96,9 @@ namespace KingOfTheHill.Managers
         {
             CurrentPhase.OnValueChanged -= HandlePhaseChanged;
             CountdownTimer.OnValueChanged -= HandleCountdownChanged;
+            StopCountdownMusic();
+            StopBackgroundMusic();
+            SetCaptureZoneLoop(false);
         }
 
         private void Update()
@@ -115,7 +139,7 @@ namespace KingOfTheHill.Managers
                 CountdownTimer.Value--;
             }
 
-            yield return new WaitForSeconds(1f);
+            yield return new WaitForSeconds(goDisplaySeconds);
 
             WinnerClientId.Value = ulong.MaxValue;
             WinningScore.Value = 0;
@@ -194,10 +218,154 @@ namespace KingOfTheHill.Managers
 
             if (phase == GamePhase.Finished)
             {
+                StopCountdownMusic();
+                StopBackgroundMusic();
+                SetCaptureZoneLoop(false);
+                PlayMatchEndSound();
+
                 Cursor.visible = true;
                 Cursor.lockState = CursorLockMode.None;
                 RefreshResultScreen();
             }
+
+            if (phase == GamePhase.Playing)
+            {
+                StopCountdownMusic();
+                _playedMatchEndSound = false;
+                PlayBackgroundMusic();
+            }
+
+            if (phase == GamePhase.Countdown)
+                PlayCountdownMusic();
+        }
+
+        public void PlayJumpSound()
+        {
+            PlayOneShot(jumpSound);
+        }
+
+        public void PlayHitSound()
+        {
+            PlayOneShot(hitSound);
+        }
+
+        public void SetCaptureZoneLoop(bool shouldPlay)
+        {
+            if (_captureZoneSource == null)
+                SetupAudioSources();
+
+            if (_captureZoneSource == null) return;
+
+            if (captureZoneLoop == null)
+            {
+                _captureZoneSource.Stop();
+                _captureZoneSource.clip = null;
+                return;
+            }
+
+            _captureZoneSource.clip = captureZoneLoop;
+            _captureZoneSource.volume = captureZoneVolume;
+            _captureZoneSource.loop = true;
+
+            if (shouldPlay)
+            {
+                if (!_captureZoneSource.isPlaying)
+                    _captureZoneSource.Play();
+            }
+            else if (_captureZoneSource.isPlaying)
+            {
+                _captureZoneSource.Stop();
+            }
+        }
+
+        private void SetupAudioSources()
+        {
+            if (_countdownSource == null)
+                _countdownSource = CreateAudioSource("CountdownSource", loop: false);
+
+            if (_musicSource == null)
+                _musicSource = CreateAudioSource("MusicSource", loop: true);
+
+            if (_sfxSource == null)
+                _sfxSource = CreateAudioSource("SfxSource", loop: false);
+
+            if (_captureZoneSource == null)
+                _captureZoneSource = CreateAudioSource("CaptureZoneSource", loop: true);
+        }
+
+        private AudioSource CreateAudioSource(string sourceName, bool loop)
+        {
+            GameObject sourceObject = new GameObject(sourceName);
+            sourceObject.transform.SetParent(transform, false);
+
+            AudioSource source = sourceObject.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.loop = loop;
+            source.spatialBlend = 0f;
+            return source;
+        }
+
+        private void PlayBackgroundMusic()
+        {
+            if (_musicSource == null)
+                SetupAudioSources();
+
+            if (_musicSource == null || backgroundMusic == null) return;
+
+            _musicSource.clip = backgroundMusic;
+            _musicSource.volume = musicVolume;
+            _musicSource.loop = true;
+
+            if (!_musicSource.isPlaying)
+                _musicSource.Play();
+        }
+
+        private void PlayCountdownMusic()
+        {
+            if (_countdownSource == null)
+                SetupAudioSources();
+
+            if (_countdownSource == null || countdownMusic == null) return;
+
+            _countdownSource.clip = countdownMusic;
+            _countdownSource.volume = musicVolume;
+            _countdownSource.loop = false;
+            _countdownSource.Play();
+        }
+
+        private void StopCountdownMusic()
+        {
+            if (_countdownSource != null && _countdownSource.isPlaying)
+                _countdownSource.Stop();
+        }
+
+        private void StopBackgroundMusic()
+        {
+            if (_musicSource != null && _musicSource.isPlaying)
+                _musicSource.Stop();
+        }
+
+        private void PlayMatchEndSound()
+        {
+            if (_playedMatchEndSound) return;
+            _playedMatchEndSound = true;
+            PlayOneShot(matchEndSound, matchEndVolume);
+        }
+
+        private void PlayOneShot(AudioClip clip)
+        {
+            PlayOneShot(clip, sfxVolume);
+        }
+
+        private void PlayOneShot(AudioClip clip, float volume)
+        {
+            if (clip == null) return;
+
+            if (_sfxSource == null)
+                SetupAudioSources();
+
+            if (_sfxSource != null)
+                _sfxSource.PlayOneShot(clip, volume);
         }
 
         private void RefreshResultScreen()
@@ -321,6 +489,7 @@ namespace KingOfTheHill.Managers
         private void OnValidate()
         {
             matchDurationSeconds = Mathf.Max(10, matchDurationSeconds);
+            goDisplaySeconds = Mathf.Max(0.25f, goDisplaySeconds);
         }
     }
 }

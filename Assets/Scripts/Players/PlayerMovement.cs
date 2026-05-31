@@ -157,7 +157,10 @@ namespace KingOfTheHill.Players
         {
             if (!IsOwner || !NetworkObject.IsPlayerObject || !_stats.IsAlive.Value) return;
             if (_cc.isGrounded)
+            {
                 _verticalVelocity = jumpForce;
+                Managers.GamePhaseManager.Singleton?.PlayJumpSound();
+            }
         }
 
         public void OnCrouch() => Crouch();

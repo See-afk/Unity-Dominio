@@ -139,6 +139,8 @@ namespace KingOfTheHill.Players
         [ClientRpc]
         private void PlayHitEffectClientRpc(ulong targetClientId)
         {
+            Managers.GamePhaseManager.Singleton?.PlayHitSound();
+
             if (NetworkManager.Singleton.LocalClientId != targetClientId) return;
             if (_animator.runtimeAnimatorController != null)
                 _animator.SetTrigger(_hitHash);
