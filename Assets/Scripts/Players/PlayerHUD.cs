@@ -45,8 +45,10 @@ namespace KingOfTheHill.Players
         private bool  _lastAlive      = true;
         private bool  _lastCapturing;
         private string _lastPlayerName = "Player";
+        private string _respawnMessage = "";
         private GUIStyle _scoreStyle;
         private GUIStyle _captureStyle;
+        private GUIStyle _respawnStyle;
 
         // ─────────────────────────────────────────────────────────────────────────
 
@@ -179,6 +181,14 @@ namespace KingOfTheHill.Players
                 respawnText.gameObject.SetActive(!alive);
         }
 
+        public void SetRespawnText(string text)
+        {
+            _respawnMessage = text;
+            
+            if (IsOwner && respawnText != null)
+                respawnText.SetText(text);
+        }
+
         // ─── Billboard siempre mira a cámara ─────────────────────────────────────
 
         private void LateUpdate()
@@ -207,6 +217,12 @@ namespace KingOfTheHill.Players
                 Rect captureRect = new Rect(16f, 62f, width, 34f);
                 GUI.Label(captureRect, "CAPTURANDO  + puntos", _captureStyle);
             }
+
+            if (!_lastAlive && !string.IsNullOrEmpty(_respawnMessage))
+            {
+                Rect respawnRect = new Rect(0, Screen.height * 0.7f, Screen.width, 100f);
+                GUI.Label(respawnRect, _respawnMessage, _respawnStyle);
+            }
         }
 
         private void EnsureRuntimeStyles()
@@ -225,6 +241,14 @@ namespace KingOfTheHill.Players
                 fontSize = 20,
                 fontStyle = FontStyle.Bold,
                 normal = { textColor = new Color(0.15f, 1f, 0.9f) }
+            };
+
+            _respawnStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = 32,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter,
+                normal = { textColor = Color.yellow }
             };
         }
     }

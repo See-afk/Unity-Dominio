@@ -38,6 +38,16 @@ namespace KingOfTheHill.Gameplay
             }
         }
 
+        public void SnapToPlayer()
+        {
+            if (playerTransform != null)
+            {
+                transform.position = playerTransform.position;
+                _targetPosition = playerTransform.position;
+                _currentVelocity = Vector3.zero;
+            }
+        }
+
         private void LateUpdate()
         {
             if (playerTransform == null) return;

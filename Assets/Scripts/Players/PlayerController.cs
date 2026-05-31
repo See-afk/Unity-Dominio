@@ -2,6 +2,12 @@ using Dominio.Managers;
 using Unity.Netcode;
 using UnityEngine;
 
+#if UNITY_6000_0_OR_NEWER
+using Unity.Cinemachine;
+#else
+using Cinemachine;
+#endif
+
 namespace KingOfTheHill.Players
 {
     /// <summary>
@@ -26,6 +32,11 @@ namespace KingOfTheHill.Players
         private PlayerNetworkSync _netSync;
         private PlayerHUD _hud;
         private Renderer _bodyRendererFallback;
+
+        private Vector3 _originalCamPos;
+        private Quaternion _originalCamRot;
+
+        public Transform PlayerCameraTransform => playerCamera != null ? playerCamera.transform : null;
 
         private void Awake()
         {
@@ -67,6 +78,12 @@ namespace KingOfTheHill.Players
                 _stats.PlayerName.Value = new Unity.Collections.FixedString32Bytes($"Player {OwnerClientId}");
 
             ApplyPlayerColor(_stats.TeamIndex.Value);
+
+            if (playerCamera != null)
+            {
+                _originalCamPos = playerCamera.transform.localPosition;
+                _originalCamRot = playerCamera.transform.localRotation;
+            }
         }
 
         public override void OnNetworkDespawn()
@@ -100,6 +117,11 @@ namespace KingOfTheHill.Players
 
             if (IsOwner)
                 SetVisibleServerRpc(false);
+                
+            if (IsLocalPlayer)
+            {
+                _localRespawnTimer = _stats.GetRespawnDelay();
+            }
         }
 
         private void HandleRespawned()
@@ -108,6 +130,12 @@ namespace KingOfTheHill.Players
 
             if (IsOwner)
                 SetVisibleServerRpc(true);
+
+            if (IsLocalPlayer)
+            {
+                RestoreCinemachineTarget();
+                _spectatedTarget = null;
+            }
         }
 
         [ServerRpc]
@@ -171,6 +199,181 @@ namespace KingOfTheHill.Players
             cc.enabled = false;
             transform.SetPositionAndRotation(position, rotation);
             cc.enabled = true;
+
+            if (IsLocalPlayer)
+            {
+                SnapCamera();
+            }
+        }
+
+        private void SnapCamera()
+        {
+            var topDownTarget = Object.FindAnyObjectByType<KingOfTheHill.Gameplay.TopDownCameraTarget>();
+            if (topDownTarget != null)
+            {
+                topDownTarget.SnapToPlayer();
+            }
+
+#if UNITY_6000_0_OR_NEWER
+            var cmCam = Object.FindAnyObjectByType<CinemachineCamera>();
+            if (cmCam != null)
+            {
+                cmCam.enabled = false;
+                cmCam.enabled = true;
+            }
+#else
+            var cmCam = Object.FindAnyObjectByType<CinemachineVirtualCamera>();
+            if (cmCam != null)
+            {
+                cmCam.PreviousStateIsValid = false;
+            }
+#endif
+        }
+
+        private void LateUpdate()
+        {
+            if (!IsLocalPlayer) return;
+
+            if (!_stats.IsAlive.Value && IsPlayingPhase())
+            {
+                SpectateBestPlayer();
+            }
+        }
+
+        private PlayerController _spectatedTarget;
+        private float _spectateCheckTimer;
+        private float _localRespawnTimer;
+
+        private void SpectateBestPlayer()
+        {
+            _localRespawnTimer -= Time.deltaTime;
+            
+            _spectateCheckTimer -= Time.deltaTime;
+            if (_spectatedTarget == null || !_spectatedTarget.GetComponent<PlayerStats>().IsAlive.Value || _spectateCheckTimer <= 0f)
+            {
+                _spectateCheckTimer = 1f;
+                var newTarget = FindBestPlayerToSpectate();
+
+                if (newTarget != null && newTarget != _spectatedTarget)
+                {
+                    _spectatedTarget = newTarget;
+                    ChangeCinemachineTarget(_spectatedTarget.transform);
+                }
+            }
+            
+            UpdateRespawnHUD();
+        }
+
+        private void UpdateRespawnHUD()
+        {
+            if (_hud == null) return;
+            
+            string timeStr = Mathf.Max(0, Mathf.CeilToInt(_localRespawnTimer)).ToString();
+            string nameStr = "Nadie";
+            
+            if (_spectatedTarget != null && _spectatedTarget.TryGetComponent<PlayerStats>(out var stats))
+            {
+                nameStr = stats.PlayerName.Value.ToString();
+            }
+            
+            _hud.SetRespawnText($"Reapareciendo en: {timeStr}s\nEspectando a: {nameStr}");
+        }
+
+        private Transform _originalCinemachineFollow;
+        private Transform _originalCinemachineLookAt;
+        private bool _cinemachineTargetSaved = false;
+
+        private void ChangeCinemachineTarget(Transform newTarget)
+        {
+#if UNITY_6000_0_OR_NEWER
+            var cmCam = Object.FindAnyObjectByType<CinemachineCamera>();
+            if (cmCam != null)
+            {
+                var targets = cmCam.Target;
+                if (!_cinemachineTargetSaved)
+                {
+                    _originalCinemachineFollow = targets.TrackingTarget;
+                    _originalCinemachineLookAt = targets.LookAtTarget;
+                    _cinemachineTargetSaved = true;
+                }
+                
+                targets.TrackingTarget = newTarget;
+                if (targets.LookAtTarget != null) targets.LookAtTarget = newTarget;
+                cmCam.Target = targets;
+            }
+#else
+            var cmCam = Object.FindAnyObjectByType<CinemachineVirtualCamera>();
+            if (cmCam != null)
+            {
+                if (!_cinemachineTargetSaved)
+                {
+                    _originalCinemachineFollow = cmCam.Follow;
+                    _originalCinemachineLookAt = cmCam.LookAt;
+                    _cinemachineTargetSaved = true;
+                }
+                
+                cmCam.Follow = newTarget;
+                if (cmCam.LookAt != null) cmCam.LookAt = newTarget;
+            }
+#endif
+            SnapCamera();
+        }
+
+        private void RestoreCinemachineTarget()
+        {
+            if (!_cinemachineTargetSaved) return;
+
+#if UNITY_6000_0_OR_NEWER
+            var cmCam = Object.FindAnyObjectByType<CinemachineCamera>();
+            if (cmCam != null)
+            {
+                var targets = cmCam.Target;
+                targets.TrackingTarget = _originalCinemachineFollow;
+                targets.LookAtTarget = _originalCinemachineLookAt;
+                cmCam.Target = targets;
+            }
+#else
+            var cmCam = Object.FindAnyObjectByType<CinemachineVirtualCamera>();
+            if (cmCam != null)
+            {
+                cmCam.Follow = _originalCinemachineFollow;
+                cmCam.LookAt = _originalCinemachineLookAt;
+            }
+#endif
+            _cinemachineTargetSaved = false;
+            SnapCamera();
+        }
+
+        private PlayerController FindBestPlayerToSpectate()
+        {
+            PlayerStats[] players = FindObjectsByType<PlayerStats>(FindObjectsSortMode.None);
+            System.Collections.Generic.List<PlayerStats> candidates = new System.Collections.Generic.List<PlayerStats>();
+            int highestScore = -1;
+
+            foreach (var p in players)
+            {
+                if (!p.IsSpawned || !p.IsAlive.Value || p == _stats) continue;
+
+                int score = p.Score.Value;
+                if (score > highestScore)
+                {
+                    highestScore = score;
+                    candidates.Clear();
+                    candidates.Add(p);
+                }
+                else if (score == highestScore)
+                {
+                    candidates.Add(p);
+                }
+            }
+
+            if (candidates.Count > 0)
+            {
+                int rnd = Random.Range(0, candidates.Count);
+                return candidates[rnd].GetComponent<PlayerController>();
+            }
+
+            return null;
         }
     }
 }

@@ -53,6 +53,7 @@ namespace KingOfTheHill.Players
         // ─── Inspector ────────────────────────────────────────────────────────────
         [Header("Respawn")]
         [SerializeField] private float respawnDelay = 5f;
+        [SerializeField] private float fallKillYLevel = -10f;
 
         private float _respawnTimer;
 
@@ -138,17 +139,46 @@ namespace KingOfTheHill.Players
         private void Update()
         {
             if (!IsServer) return;
-            if (IsAlive.Value) return;
+
+            if (IsAlive.Value)
+            {
+                if (transform.position.y < fallKillYLevel)
+                {
+                    Kill();
+                }
+                return;
+            }
 
             _respawnTimer -= Time.deltaTime;
             if (_respawnTimer <= 0f)
                 Respawn();
         }
 
+        private void Kill()
+        {
+            if (!IsAlive.Value) return;
+            Health.Value = 0f;
+            IsAlive.Value = false;
+            ScheduleRespawn();
+        }
+
+        public float GetRespawnDelay()
+        {
+            return respawnDelay;
+        }
+
         private void Respawn()
         {
             Health.Value  = MaxHealth;
             IsAlive.Value = true;
+
+            var spawner = FindFirstObjectByType<Managers.PlayerSpawner>();
+            if (spawner != null)
+            {
+                var controller = GetComponent<PlayerController>();
+                if (controller != null)
+                    spawner.RespawnPlayer(controller);
+            }
         }
     }
 }
