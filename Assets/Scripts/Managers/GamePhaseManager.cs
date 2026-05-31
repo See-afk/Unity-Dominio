@@ -35,13 +35,15 @@ namespace KingOfTheHill.Managers
         [SerializeField] private GameObject cinematicCamera;
         [SerializeField] private GameObject mobileUIRoot;
 
-        private readonly List<PlayerStats> _scoreboardPlayers = new List<PlayerStats>();
-        private GUIStyle _timerStyle;
-        private GUIStyle _resultTitleStyle;
-        private GUIStyle _resultSubtitleStyle;
-        private GUIStyle _scoreboardStyle;
-        private GUIStyle _buttonStyle;
-        private GUIStyle _panelStyle;
+        [Header("UI del Scoreboard (Canvas)")]
+        [SerializeField] private TextMeshProUGUI matchTimerText;
+        [SerializeField] private GameObject resultPanel;
+        [SerializeField] private TextMeshProUGUI resultTitleText;
+        [SerializeField] private TextMeshProUGUI resultSubtitleText;
+        [SerializeField] private TextMeshProUGUI scoreboardText;
+        [SerializeField] private UnityEngine.UI.Button menuButton;
+        [SerializeField] private UnityEngine.UI.Button restartButton;
+
         private bool _isLeavingToMenu;
         private bool _isRestartingMatch;
 
@@ -51,6 +53,11 @@ namespace KingOfTheHill.Managers
                 Destroy(gameObject);
             else
                 Singleton = this;
+
+            if (menuButton != null)
+                menuButton.onClick.AddListener(LeaveToMenu);
+            if (restartButton != null)
+                restartButton.onClick.AddListener(RequestRestartMatch);
         }
 
         public override void OnNetworkSpawn()
@@ -68,6 +75,17 @@ namespace KingOfTheHill.Managers
         {
             CurrentPhase.OnValueChanged -= HandlePhaseChanged;
             CountdownTimer.OnValueChanged -= HandleCountdownChanged;
+        }
+
+        private void Update()
+        {
+            if (!IsSpawned) return;
+
+            if (CurrentPhase.Value == GamePhase.Playing)
+            {
+                if (matchTimerText != null)
+                    matchTimerText.text = FormatTime(MatchTimer.Value);
+            }
         }
 
         private void HandlePhaseChanged(GamePhase oldPhase, GamePhase newPhase)
@@ -134,7 +152,7 @@ namespace KingOfTheHill.Managers
 
         private PlayerStats FindWinner()
         {
-            PlayerStats[] players = FindObjectsByType<PlayerStats>();
+            PlayerStats[] players = FindObjectsByType<PlayerStats>(FindObjectsInactive.Exclude);
             PlayerStats winner = null;
 
             for (int i = 0; i < players.Length; i++)
@@ -168,61 +186,57 @@ namespace KingOfTheHill.Managers
             if (countdownText != null && isPlaying)
                 countdownText.text = "";
 
+            if (matchTimerText != null)
+                matchTimerText.gameObject.SetActive(isPlaying);
+
+            if (resultPanel != null)
+                resultPanel.SetActive(phase == GamePhase.Finished);
+
             if (phase == GamePhase.Finished)
             {
                 Cursor.visible = true;
                 Cursor.lockState = CursorLockMode.None;
+                RefreshResultScreen();
             }
         }
 
-        private void OnValidate()
+        private void RefreshResultScreen()
         {
-            matchDurationSeconds = Mathf.Max(10, matchDurationSeconds);
-        }
-
-        private void OnGUI()
-        {
-            if (!IsSpawned) return;
-
-            EnsureStyles();
-
-            if (CurrentPhase.Value == GamePhase.Playing)
-                DrawMatchTimer();
-            else if (CurrentPhase.Value == GamePhase.Finished)
-                DrawResultScreen();
-        }
-
-        private void DrawMatchTimer()
-        {
-            Rect rect = new Rect((Screen.width - 240f) * 0.5f, 16f, 240f, 44f);
-            GUI.Label(rect, FormatTime(MatchTimer.Value), _timerStyle);
-        }
-
-        private void DrawResultScreen()
-        {
-            float panelWidth = Mathf.Min(560f, Screen.width - 32f);
-            float panelHeight = Mathf.Min(520f, Screen.height - 32f);
-            Rect panel = new Rect(
-                (Screen.width - panelWidth) * 0.5f,
-                (Screen.height - panelHeight) * 0.5f,
-                panelWidth,
-                panelHeight);
-
-            GUI.Box(panel, GUIContent.none, _panelStyle);
-
             bool localWon = NetworkManager.Singleton != null
                 && WinnerClientId.Value == NetworkManager.Singleton.LocalClientId;
 
-            Rect titleRect = new Rect(panel.x + 24f, panel.y + 24f, panel.width - 48f, 54f);
-            GUI.Label(titleRect, localWon ? "VICTORIA" : "DERROTA", _resultTitleStyle);
+            if (resultTitleText != null)
+                resultTitleText.text = localWon ? "VICTORIA" : "DERROTA";
 
-            Rect subtitleRect = new Rect(panel.x + 24f, panel.y + 82f, panel.width - 48f, 34f);
-            GUI.Label(subtitleRect, GetWinnerText(), _resultSubtitleStyle);
+            if (resultSubtitleText != null)
+                resultSubtitleText.text = GetWinnerText();
 
-            Rect tableRect = new Rect(panel.x + 34f, panel.y + 138f, panel.width - 68f, panel.height - 228f);
-            DrawScoreboard(tableRect);
+            if (scoreboardText != null)
+            {
+                var sb = new System.Text.StringBuilder();
+                List<PlayerStats> players = GetSortedPlayers();
+                
+                for (int i = 0; i < players.Count; i++)
+                {
+                    PlayerStats stats = players[i];
+                    string marker = stats.OwnerClientId == WinnerClientId.Value ? "1." : $"{i + 1}.";
+                    sb.AppendLine($"{marker} {stats.PlayerName.Value}    {stats.Score.Value} pts");
+                }
+                scoreboardText.text = sb.ToString();
+            }
+        }
 
-            DrawResultButtons(panel);
+        private List<PlayerStats> GetSortedPlayers()
+        {
+            List<PlayerStats> playersList = new List<PlayerStats>();
+            PlayerStats[] players = FindObjectsByType<PlayerStats>(FindObjectsInactive.Exclude);
+            for (int i = 0; i < players.Length; i++)
+            {
+                if (players[i] != null && players[i].IsSpawned)
+                    playersList.Add(players[i]);
+            }
+            playersList.Sort((a, b) => b.Score.Value.CompareTo(a.Score.Value));
+            return playersList;
         }
 
         private string GetWinnerText()
@@ -236,74 +250,22 @@ namespace KingOfTheHill.Managers
 
         private PlayerStats FindPlayerByClientId(ulong clientId)
         {
-            PlayerStats[] players = FindObjectsByType<PlayerStats>();
+            PlayerStats[] players = FindObjectsByType<PlayerStats>(FindObjectsInactive.Exclude);
             for (int i = 0; i < players.Length; i++)
             {
                 if (players[i] != null && players[i].IsSpawned && players[i].OwnerClientId == clientId)
                     return players[i];
             }
-
             return null;
         }
 
-        private void DrawScoreboard(Rect rect)
-        {
-            RefreshScoreboardPlayers();
-
-            GUI.Label(new Rect(rect.x, rect.y, rect.width, 30f), "Tabla de puntuacion", _resultSubtitleStyle);
-
-            float y = rect.y + 42f;
-            for (int i = 0; i < _scoreboardPlayers.Count; i++)
-            {
-                PlayerStats stats = _scoreboardPlayers[i];
-                if (stats == null) continue;
-
-                string marker = stats.OwnerClientId == WinnerClientId.Value ? "1." : $"{i + 1}.";
-                string line = $"{marker} {stats.PlayerName.Value}    {stats.Score.Value} pts";
-                GUI.Label(new Rect(rect.x, y, rect.width, 28f), line, _scoreboardStyle);
-                y += 32f;
-            }
-        }
-
-        private void RefreshScoreboardPlayers()
-        {
-            _scoreboardPlayers.Clear();
-
-            PlayerStats[] players = FindObjectsByType<PlayerStats>();
-            for (int i = 0; i < players.Length; i++)
-            {
-                if (players[i] != null && players[i].IsSpawned)
-                    _scoreboardPlayers.Add(players[i]);
-            }
-
-            _scoreboardPlayers.Sort((a, b) => b.Score.Value.CompareTo(a.Score.Value));
-        }
-
-        private void DrawResultButtons(Rect panel)
-        {
-            float buttonWidth = Mathf.Min(220f, (panel.width - 72f) * 0.5f);
-            float buttonHeight = 46f;
-            float y = panel.yMax - 68f;
-            float leftX = panel.x + (panel.width - (buttonWidth * 2f + 24f)) * 0.5f;
-
-            Rect menuRect = new Rect(leftX, y, buttonWidth, buttonHeight);
-            Rect restartRect = new Rect(leftX + buttonWidth + 24f, y, buttonWidth, buttonHeight);
-
-            GUI.enabled = !_isLeavingToMenu;
-            if (GUI.Button(menuRect, "Salir al menu", _buttonStyle))
-                LeaveToMenu();
-
-            GUI.enabled = !_isRestartingMatch && !_isLeavingToMenu;
-            if (GUI.Button(restartRect, "Nueva partida", _buttonStyle))
-                RequestRestartMatch();
-
-            GUI.enabled = true;
-        }
-
-        private void RequestRestartMatch()
+        public void RequestRestartMatch()
         {
             if (_isRestartingMatch) return;
             _isRestartingMatch = true;
+
+            if (menuButton != null) menuButton.interactable = false;
+            if (restartButton != null) restartButton.interactable = false;
 
             if (IsServer)
                 RestartMatch();
@@ -325,10 +287,13 @@ namespace KingOfTheHill.Managers
             NetworkManager.Singleton.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
         }
 
-        private void LeaveToMenu()
+        public void LeaveToMenu()
         {
             if (_isLeavingToMenu) return;
             _isLeavingToMenu = true;
+
+            if (menuButton != null) menuButton.interactable = false;
+            if (restartButton != null) restartButton.interactable = false;
 
             StartCoroutine(LeaveToMenuRoutine());
         }
@@ -353,55 +318,9 @@ namespace KingOfTheHill.Managers
             return $"{seconds / 60:00}:{seconds % 60:00}";
         }
 
-        private void EnsureStyles()
+        private void OnValidate()
         {
-            if (_timerStyle != null) return;
-
-            _timerStyle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 34,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
-            };
-
-            _resultTitleStyle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 42,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
-            };
-
-            _resultSubtitleStyle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 22,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
-            };
-
-            _scoreboardStyle = new GUIStyle(GUI.skin.label)
-            {
-                alignment = TextAnchor.MiddleLeft,
-                fontSize = 21,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
-            };
-
-            _buttonStyle = new GUIStyle(GUI.skin.button)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontSize = 18,
-                fontStyle = FontStyle.Bold
-            };
-
-            Texture2D panelTexture = new Texture2D(1, 1);
-            panelTexture.SetPixel(0, 0, new Color(0f, 0f, 0f, 0.82f));
-            panelTexture.Apply();
-
-            _panelStyle = new GUIStyle(GUI.skin.box);
-            _panelStyle.normal.background = panelTexture;
+            matchDurationSeconds = Mathf.Max(10, matchDurationSeconds);
         }
     }
 }

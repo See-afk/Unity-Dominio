@@ -46,9 +46,6 @@ namespace KingOfTheHill.Players
         private bool  _lastCapturing;
         private string _lastPlayerName = "Player";
         private string _respawnMessage = "";
-        private GUIStyle _scoreStyle;
-        private GUIStyle _captureStyle;
-        private GUIStyle _respawnStyle;
 
         // ─────────────────────────────────────────────────────────────────────────
 
@@ -60,13 +57,14 @@ namespace KingOfTheHill.Players
                 gameObject.AddComponent<CaptureZoneDirectionArrow>();
         }
 
+        // Usando IsLocalPlayer heredado de NetworkBehaviour
         public override void OnNetworkSpawn()
         {
             _mainCamera = Camera.main;
 
-            // Solo el Owner ve el HUD propio
+            // Solo el Owner (que sea un Player, no un Bot) ve el HUD propio
             if (ownerHUDRoot != null)
-                ownerHUDRoot.SetActive(IsOwner);
+                ownerHUDRoot.SetActive(IsLocalPlayer);
 
             // Suscribirse a cambios
             _stats.Health.OnValueChanged    += OnHealthChanged;
@@ -116,7 +114,7 @@ namespace KingOfTheHill.Players
             float normalized = hp / PlayerStats.MaxHealth;
 
             // HUD propio
-            if (IsOwner)
+            if (IsLocalPlayer)
             {
                 if (healthSlider != null) healthSlider.value = normalized;
                 if (healthText   != null) healthText.SetText("{0:0}", hp);
@@ -146,7 +144,7 @@ namespace KingOfTheHill.Players
             if (score == _lastScore) return;
             _lastScore = score;
 
-            if (IsOwner && scoreText != null)
+            if (IsLocalPlayer && scoreText != null)
                 scoreText.SetText("{0} pts", score);
 
             RefreshBillboardName();
@@ -177,15 +175,34 @@ namespace KingOfTheHill.Players
                 billboardRoot.SetActive(alive);
 
             // Texto de respawn (solo Owner)
-            if (IsOwner && respawnText != null)
+            if (IsLocalPlayer && respawnText != null)
+            {
                 respawnText.gameObject.SetActive(!alive);
+                
+                Transform overlay = null;
+                if (respawnText.transform.parent != null && respawnText.transform.parent.name == "RespawnOverlay")
+                {
+                    overlay = respawnText.transform.parent;
+                    overlay.gameObject.SetActive(!alive);
+                }
+                
+                // Ocultar vida, puntaje y controles (todo excepto RespawnOverlay)
+                if (ownerHUDRoot != null)
+                {
+                    foreach (Transform child in ownerHUDRoot.transform)
+                    {
+                        if (child == overlay || child == respawnText.transform) continue;
+                        child.gameObject.SetActive(alive);
+                    }
+                }
+            }
         }
 
         public void SetRespawnText(string text)
         {
             _respawnMessage = text;
             
-            if (IsOwner && respawnText != null)
+            if (IsLocalPlayer && respawnText != null)
                 respawnText.SetText(text);
         }
 
@@ -200,56 +217,6 @@ namespace KingOfTheHill.Players
             billboardRoot.transform.LookAt(
                 billboardRoot.transform.position + _mainCamera.transform.rotation * Vector3.forward,
                 _mainCamera.transform.rotation * Vector3.up);
-        }
-
-        private void OnGUI()
-        {
-            if (!IsOwner || _stats == null || !_stats.IsSpawned) return;
-
-            EnsureRuntimeStyles();
-
-            float width = Mathf.Min(320f, Screen.width - 32f);
-            Rect scoreRect = new Rect(16f, 16f, width, 42f);
-            GUI.Label(scoreRect, $"Puntaje: {Mathf.Max(0, _lastScore)} pts", _scoreStyle);
-
-            if (_lastCapturing)
-            {
-                Rect captureRect = new Rect(16f, 62f, width, 34f);
-                GUI.Label(captureRect, "CAPTURANDO  + puntos", _captureStyle);
-            }
-
-            if (!_lastAlive && !string.IsNullOrEmpty(_respawnMessage))
-            {
-                Rect respawnRect = new Rect(0, Screen.height * 0.7f, Screen.width, 100f);
-                GUI.Label(respawnRect, _respawnMessage, _respawnStyle);
-            }
-        }
-
-        private void EnsureRuntimeStyles()
-        {
-            if (_scoreStyle != null && _captureStyle != null) return;
-
-            _scoreStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 26,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
-            };
-
-            _captureStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 20,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = new Color(0.15f, 1f, 0.9f) }
-            };
-
-            _respawnStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = 32,
-                fontStyle = FontStyle.Bold,
-                alignment = TextAnchor.MiddleCenter,
-                normal = { textColor = Color.yellow }
-            };
         }
     }
 
