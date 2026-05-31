@@ -275,8 +275,7 @@ namespace KingOfTheHill.Players
             {
                 nameStr = stats.PlayerName.Value.ToString();
             }
-            
-            _hud.SetRespawnText($"Reapareciendo en: {timeStr}s\nEspectando a: {nameStr}");
+            _hud.SetRespawnText($"{nameStr}\n{timeStr}");
         }
 
         private Transform _originalCinemachineFollow;
@@ -346,7 +345,7 @@ namespace KingOfTheHill.Players
 
         private PlayerController FindBestPlayerToSpectate()
         {
-            PlayerStats[] players = FindObjectsByType<PlayerStats>(FindObjectsSortMode.None);
+            PlayerStats[] players = FindObjectsByType<PlayerStats>();
             System.Collections.Generic.List<PlayerStats> candidates = new System.Collections.Generic.List<PlayerStats>();
             int highestScore = -1;
 

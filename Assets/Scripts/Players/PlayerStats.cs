@@ -172,7 +172,7 @@ namespace KingOfTheHill.Players
             Health.Value  = MaxHealth;
             IsAlive.Value = true;
 
-            var spawner = FindFirstObjectByType<Managers.PlayerSpawner>();
+            var spawner = FindAnyObjectByType<Managers.PlayerSpawner>();
             if (spawner != null)
             {
                 var controller = GetComponent<PlayerController>();
