@@ -267,7 +267,7 @@ namespace KingOfTheHill.Editor
             var scene = EditorSceneManager.GetActiveScene();
             if (scene.path != ScenePath && scene.path != BackupScene) return false;
 
-            foreach (TextMeshProUGUI tmp in Object.FindObjectsByType<TextMeshProUGUI>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            foreach (TextMeshProUGUI tmp in Object.FindObjectsByType<TextMeshProUGUI>(FindObjectsInactive.Include))
             {
                 string n = tmp.gameObject.name.ToLower();
                 if (!n.Contains("countdown") && !n.Contains("phase") && !n.Contains("timer")) continue;
