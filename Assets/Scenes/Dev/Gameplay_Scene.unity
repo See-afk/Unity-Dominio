@@ -2331,7 +2331,7 @@ MonoBehaviour:
   m_spriteAsset: {fileID: 0}
   m_tintAllSprites: 0
   m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: 0
+  m_TextStyleHashCode: -1183493901
   m_overrideHtmlColors: 0
   m_faceColor:
     serializedVersion: 2
@@ -3390,7 +3390,8 @@ MonoBehaviour:
     m_InternalValue: 18446744073709551615
   WinningScore:
     m_InternalValue: 50
-  matchDurationSeconds: 60
+  matchDurationSeconds: 30
+  goDisplaySeconds: 1.5
   mainMenuSceneName: MainMenu_Scene
   countdownText: {fileID: 1529048930}
   cinematicCamera: {fileID: 735932065}
@@ -3402,6 +3403,16 @@ MonoBehaviour:
   scoreboardText: {fileID: 273667155}
   menuButton: {fileID: 384248928}
   restartButton: {fileID: 11397296}
+  countdownMusic: {fileID: 8300000, guid: 4b6cd2f4bb5d4614ba26ece711ade0f9, type: 3}
+  backgroundMusic: {fileID: 8300000, guid: da9ee2761eec96048b526cdaf14cac90, type: 3}
+  hitSound: {fileID: 8300000, guid: 073675f18e3f4e9418dab0c04b99c9dc, type: 3}
+  jumpSound: {fileID: 8300000, guid: c6bf643a49971074b9655b48fcbcf784, type: 3}
+  captureZoneLoop: {fileID: 8300000, guid: 14e4400d0e465844c9b6c214d0cc012d, type: 3}
+  matchEndSound: {fileID: 8300000, guid: 7a7db8fe486e02840ae9a32d511a160b, type: 3}
+  musicVolume: 0.03
+  sfxVolume: 0.054
+  captureZoneVolume: 0.1
+  matchEndVolume: 0.1
 --- !u!1001 &1578255536
 PrefabInstance:
   m_ObjectHideFlags: 0

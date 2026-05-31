@@ -85,6 +85,9 @@ namespace KingOfTheHill.Players
 
         public override void OnNetworkDespawn()
         {
+            if (IsLocalPlayer)
+                Managers.GamePhaseManager.Singleton?.SetCaptureZoneLoop(false);
+
             _stats.Health.OnValueChanged    -= OnHealthChanged;
             _stats.TeamIndex.OnValueChanged -= OnTeamChanged;
             _stats.IsAlive.OnValueChanged   -= OnAliveChanged;
@@ -153,6 +156,9 @@ namespace KingOfTheHill.Players
         private void RefreshCaptureZoneUI(bool isCapturing)
         {
             _lastCapturing = isCapturing;
+
+            if (IsLocalPlayer)
+                Managers.GamePhaseManager.Singleton?.SetCaptureZoneLoop(isCapturing && _stats.IsAlive.Value);
         }
 
         private void RefreshBillboardName()
@@ -173,6 +179,9 @@ namespace KingOfTheHill.Players
             // Billboard solo visible si está vivo
             if (billboardRoot != null)
                 billboardRoot.SetActive(alive);
+
+            if (IsLocalPlayer && !alive)
+                Managers.GamePhaseManager.Singleton?.SetCaptureZoneLoop(false);
 
             // Texto de respawn (solo Owner)
             if (IsLocalPlayer && respawnText != null)
